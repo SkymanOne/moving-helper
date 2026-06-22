@@ -1,6 +1,8 @@
 import { Client } from "@notionhq/client";
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
+function getClient(accessToken: string) {
+  return new Client({ auth: accessToken });
+}
 
 export type IdPropertyType = "title" | "rich_text" | "unique_id";
 
@@ -26,7 +28,74 @@ export interface EntryInfo {
   currentStatus: string | null;
 }
 
-export async function listDatabases(): Promise<DatabaseInfo[]> {
+export async function exchangeOAuthCode(code: string): Promise<{
+  accessToken: string;
+  workspaceName: string;
+  workspaceIcon: string | null;
+}> {
+  const clientId = process.env.NOTION_CLIENT_ID;
+  const clientSecret = process.env.NOTION_CLIENT_SECRET;
+  const redirectUri = process.env.NOTION_REDIRECT_URI;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error("Missing Notion OAuth env variables");
+  }
+
+  const response = await fetch("https://api.notion.com/v1/oauth/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+    },
+    body: JSON.stringify({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OAuth token exchange failed: ${body}`);
+  }
+
+  const data = (await response.json()) as {
+    access_token: string;
+    workspace_name: string;
+    workspace_icon: string | null;
+  };
+
+  return {
+    accessToken: data.access_token,
+    workspaceName: data.workspace_name,
+    workspaceIcon: data.workspace_icon,
+  };
+}
+
+export function getNotionAuthUrl(state?: string): string {
+  const clientId = process.env.NOTION_CLIENT_ID;
+  const redirectUri = process.env.NOTION_REDIRECT_URI;
+
+  if (!clientId || !redirectUri) {
+    throw new Error("Missing NOTION_CLIENT_ID or NOTION_REDIRECT_URI");
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: "code",
+    owner: "user",
+    redirect_uri: redirectUri,
+  });
+
+  if (state) params.set("state", state);
+
+  return `https://api.notion.com/v1/oauth/authorize?${params}`;
+}
+
+export async function listDatabases(
+  accessToken: string
+): Promise<DatabaseInfo[]> {
+  const notion = getClient(accessToken);
   const response = await notion.search({
     filter: { property: "object", value: "data_source" },
   });
@@ -131,7 +200,11 @@ export async function listDatabases(): Promise<DatabaseInfo[]> {
   return databases;
 }
 
-export async function getDatabaseSchema(dataSourceId: string) {
+export async function getDatabaseSchema(
+  accessToken: string,
+  dataSourceId: string
+) {
+  const notion = getClient(accessToken);
   const ds = await notion.dataSources.retrieve({
     data_source_id: dataSourceId,
   });
@@ -208,7 +281,6 @@ export async function getDatabaseSchema(dataSourceId: string) {
 
 /**
  * Parse a scanned barcode value to extract the numeric ID for unique_id lookup.
- * Handles formats like "MOV-42", "42", or just the number.
  */
 function parseUniqueIdCode(code: string, prefix: string | null): number | null {
   if (prefix) {
@@ -222,12 +294,14 @@ function parseUniqueIdCode(code: string, prefix: string | null): number | null {
 }
 
 export async function findEntryByCode(
+  accessToken: string,
   dataSourceId: string,
   idPropertyName: string,
   idPropertyType: IdPropertyType,
   uniqueIdPrefix: string | null,
   code: string
 ): Promise<EntryInfo | null> {
+  const notion = getClient(accessToken);
   let filter: Record<string, unknown>;
 
   if (idPropertyType === "unique_id") {
@@ -273,17 +347,16 @@ export async function findEntryByCode(
 }
 
 export async function createEntry(
+  accessToken: string,
   dataSourceId: string,
   idPropertyName: string,
   idPropertyType: IdPropertyType,
   code: string
 ): Promise<EntryInfo> {
-  // unique_id is auto-generated, so we set the title property instead if idPropertyType is unique_id
-  // For unique_id databases, we find the title property and set the code there
+  const notion = getClient(accessToken);
   let properties: Parameters<typeof notion.pages.create>[0]["properties"];
 
   if (idPropertyType === "unique_id") {
-    // When the ID field is unique_id (auto-generated), store the barcode in the title field
     const ds = await notion.dataSources.retrieve({
       data_source_id: dataSourceId,
     });
@@ -319,11 +392,13 @@ export async function createEntry(
 }
 
 export async function updateStatus(
+  accessToken: string,
   pageId: string,
   statusPropertyName: string,
   statusPropertyType: "status" | "select",
   statusValue: string
 ): Promise<void> {
+  const notion = getClient(accessToken);
   await notion.pages.update({
     page_id: pageId,
     properties:

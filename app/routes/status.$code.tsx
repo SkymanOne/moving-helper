@@ -1,12 +1,7 @@
-import {
-  redirect,
-  useLoaderData,
-  useFetcher,
-  Link,
-} from "react-router";
+import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
-import { getSelectedDb } from "~/lib/cookies.server";
+import { getAuth, getSelectedDb } from "~/lib/cookies.server";
 import {
   findEntryByCode,
   createEntry,
@@ -20,16 +15,20 @@ export function meta({ params }: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
+  const auth = await getAuth(request);
+  if (!auth) throw redirect("/");
   const selected = await getSelectedDb(request);
   if (!selected) throw redirect("/");
 
   const code = decodeURIComponent(params.code);
 
-  // Fetch schema for fresh status options
-  const schema = await getDatabaseSchema(selected.dataSourceId);
+  const schema = await getDatabaseSchema(
+    auth.accessToken,
+    selected.dataSourceId
+  );
 
-  // Look up or create entry
   let entry = await findEntryByCode(
+    auth.accessToken,
     selected.dataSourceId,
     selected.idPropertyName,
     selected.idPropertyType,
@@ -39,6 +38,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   if (!entry) {
     entry = await createEntry(
+      auth.accessToken,
       selected.dataSourceId,
       selected.idPropertyName,
       selected.idPropertyType,
@@ -57,6 +57,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const auth = await getAuth(request);
+  if (!auth) throw redirect("/");
+
   const formData = await request.formData();
   const pageId = formData.get("pageId") as string;
   const statusValue = formData.get("statusValue") as string;
@@ -69,7 +72,13 @@ export async function action({ request }: Route.ActionArgs) {
     throw new Response("Missing required fields", { status: 400 });
   }
 
-  await updateStatus(pageId, statusPropertyName, statusPropertyType, statusValue);
+  await updateStatus(
+    auth.accessToken,
+    pageId,
+    statusPropertyName,
+    statusPropertyType,
+    statusValue
+  );
 
   return { success: true, updatedStatus: statusValue };
 }

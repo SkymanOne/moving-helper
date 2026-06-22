@@ -2,6 +2,7 @@ import { redirect, useLoaderData, Link } from "react-router";
 import type { Route } from "./+types/_index";
 import { listDatabases } from "~/lib/notion.server";
 import {
+  getAuth,
   getSelectedDb,
   setSelectedDb,
   type SelectedDb,
@@ -11,17 +12,40 @@ import { DatabasePicker } from "~/components/DatabasePicker";
 export function meta() {
   return [
     { title: "Moving Buddy" },
-    { name: "description", content: "Track your moving boxes with barcode scanning" },
+    {
+      name: "description",
+      content: "Track your moving boxes with barcode scanning",
+    },
   ];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
+  const auth = await getAuth(request);
   const selected = await getSelectedDb(request);
-  const databases = await listDatabases();
-  return { databases, hasSelection: !!selected };
+
+  if (!auth) {
+    return {
+      authenticated: false as const,
+      databases: [],
+      hasSelection: false,
+      workspaceName: null,
+    };
+  }
+
+  const databases = await listDatabases(auth.accessToken);
+
+  return {
+    authenticated: true as const,
+    databases,
+    hasSelection: !!selected,
+    workspaceName: auth.workspaceName,
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const auth = await getAuth(request);
+  if (!auth) throw redirect("/");
+
   const formData = await request.formData();
   const dataSourceId = formData.get("dataSourceId") as string;
 
@@ -29,7 +53,7 @@ export async function action({ request }: Route.ActionArgs) {
     throw new Response("Missing database selection", { status: 400 });
   }
 
-  const databases = await listDatabases();
+  const databases = await listDatabases(auth.accessToken);
   const db = databases.find((d) => d.dataSourceId === dataSourceId);
 
   if (!db) {
@@ -52,7 +76,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function SetupPage() {
-  const { databases, hasSelection } = useLoaderData<typeof loader>();
+  const { authenticated, databases, hasSelection, workspaceName } =
+    useLoaderData<typeof loader>();
 
   return (
     <div className="flex-1 flex flex-col">
@@ -66,15 +91,31 @@ export default function SetupPage() {
       </div>
 
       <div className="pb-8">
-        {hasSelection && (
-          <Link
-            to="/scan"
-            className="block w-full text-center mb-4 px-4 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 active:scale-[0.98] transition-all"
+        {!authenticated ? (
+          <a
+            href="/auth/login"
+            className="block w-full text-center px-4 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 active:scale-[0.98] transition-all"
           >
-            Continue to Scanner
-          </Link>
+            Connect to Notion
+          </a>
+        ) : (
+          <>
+            {workspaceName && (
+              <p className="text-sm text-slate-400 text-center mb-4">
+                Connected to <span className="font-medium text-slate-600">{workspaceName}</span>
+              </p>
+            )}
+            {hasSelection && (
+              <Link
+                to="/scan"
+                className="block w-full text-center mb-4 px-4 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 active:scale-[0.98] transition-all"
+              >
+                Continue to Scanner
+              </Link>
+            )}
+            <DatabasePicker databases={databases} />
+          </>
         )}
-        <DatabasePicker databases={databases} />
       </div>
     </div>
   );

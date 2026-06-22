@@ -1,20 +1,28 @@
 import { redirect, useNavigate, Form } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
-import { getSelectedDb, clearSelectedDb } from "~/lib/cookies.server";
+import {
+  getAuth,
+  clearAuth,
+  getSelectedDb,
+  clearSelectedDb,
+} from "~/lib/cookies.server";
 
 const ScannerView = lazy(() => import("~/components/ScannerView"));
 
 export async function loader({ request }: Route.LoaderArgs) {
+  const auth = await getAuth(request);
+  if (!auth) throw redirect("/");
   const selected = await getSelectedDb(request);
   if (!selected) throw redirect("/");
-  return { dataSourceId: selected.dataSourceId };
+  return null;
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  return redirect("/", {
-    headers: { "Set-Cookie": await clearSelectedDb() },
-  });
+export async function action() {
+  const headers = new Headers();
+  headers.append("Set-Cookie", await clearAuth());
+  headers.append("Set-Cookie", await clearSelectedDb());
+  return redirect("/", { headers });
 }
 
 export default function ScanPage() {
@@ -52,7 +60,7 @@ export default function ScanPage() {
             type="submit"
             className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
           >
-            Disconnect
+            Log Out
           </button>
         </Form>
       </header>
