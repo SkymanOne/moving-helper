@@ -22,34 +22,33 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const code = decodeURIComponent(params.code);
 
-  const schema = await getDatabaseSchema(
-    auth.accessToken,
-    selected.dataSourceId
-  );
-
-  let entry = await findEntryByCode(
-    auth.accessToken,
-    selected.dataSourceId,
-    selected.idPropertyName,
-    selected.idPropertyType,
-    selected.uniqueIdPrefix,
-    code
-  );
-
-  if (!entry) {
-    entry = await createEntry(
+  const [schema, entry] = await Promise.all([
+    getDatabaseSchema(auth.accessToken, selected.dataSourceId),
+    findEntryByCode(
       auth.accessToken,
       selected.dataSourceId,
       selected.idPropertyName,
       selected.idPropertyType,
+      selected.uniqueIdPrefix,
       code
-    );
-  }
+    ),
+  ]);
+
+  const resolvedEntry =
+    entry ??
+    (await createEntry(
+      auth.accessToken,
+      selected.dataSourceId,
+      selected.idPropertyName,
+      selected.idPropertyType,
+      code,
+      schema.titlePropertyName ?? undefined
+    ));
 
   return {
     code,
-    pageId: entry.pageId,
-    currentStatus: entry.currentStatus,
+    pageId: resolvedEntry.pageId,
+    currentStatus: resolvedEntry.currentStatus,
     statusOptions: schema.options,
     statusPropertyName: selected.statusPropertyName,
     statusPropertyType: selected.statusPropertyType,

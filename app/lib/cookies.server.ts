@@ -15,6 +15,10 @@ export const authCookie = createCookie("auth", {
 
 export const selectedDbCookie = createCookie("selectedDb", {
   maxAge: 60 * 60 * 24 * 30, // 30 days
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  secrets: [process.env.SESSION_SECRET],
 });
 
 export interface AuthSession {

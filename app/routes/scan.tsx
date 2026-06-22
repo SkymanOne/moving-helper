@@ -1,4 +1,4 @@
-import { redirect, useNavigate, Form, Link } from "react-router";
+import { redirect, useNavigate, useNavigation, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
 import {
@@ -27,6 +27,8 @@ export async function action() {
 
 export default function ScanPage() {
   const navigate = useNavigate();
+  const navigation = useNavigation();
+  const isNavigating = navigation.state === "loading";
   const [error, setError] = useState<string | null>(null);
 
   const handleScan = useCallback(
@@ -77,7 +79,12 @@ export default function ScanPage() {
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center">
-        {error ? (
+        {isNavigating ? (
+          <div className="text-center py-12">
+            <div className="inline-block w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+            <p className="mt-3 text-sm text-slate-400">Loading...</p>
+          </div>
+        ) : error ? (
           <div className="text-center px-4">
             <div className="text-4xl mb-4">📷</div>
             <p className="text-red-600 font-medium">{error}</p>
@@ -101,9 +108,11 @@ export default function ScanPage() {
         )}
       </div>
 
-      <p className="text-center text-sm text-slate-400 mt-4 pb-4">
-        Point your camera at a barcode or QR code
-      </p>
+      {!isNavigating && (
+        <p className="text-center text-sm text-slate-400 mt-4 pb-4">
+          Point your camera at a barcode or QR code
+        </p>
+      )}
     </div>
   );
 }

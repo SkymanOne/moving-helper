@@ -1,6 +1,6 @@
 import { redirect, useLoaderData, Link, useNavigation } from "react-router";
 import type { Route } from "./+types/_index";
-import { listDatabases } from "~/lib/notion.server";
+import { listDatabases, getDatabaseSchema } from "~/lib/notion.server";
 import {
   getAuth,
   getSelectedDb,
@@ -53,21 +53,16 @@ export async function action({ request }: Route.ActionArgs) {
     throw new Response("Missing database selection", { status: 400 });
   }
 
-  const databases = await listDatabases(auth.accessToken);
-  const db = databases.find((d) => d.dataSourceId === dataSourceId);
-
-  if (!db) {
-    throw new Response("Database not found", { status: 404 });
-  }
+  const schema = await getDatabaseSchema(auth.accessToken, dataSourceId);
 
   const selected: SelectedDb = {
-    databaseId: db.id,
-    dataSourceId: db.dataSourceId,
-    statusPropertyName: db.statusPropertyName,
-    statusPropertyType: db.statusPropertyType,
-    idPropertyName: db.idPropertyName,
-    idPropertyType: db.idPropertyType,
-    uniqueIdPrefix: db.uniqueIdPrefix,
+    databaseId: dataSourceId,
+    dataSourceId,
+    statusPropertyName: schema.statusPropertyName,
+    statusPropertyType: schema.statusPropertyType,
+    idPropertyName: schema.idPropertyName,
+    idPropertyType: schema.idPropertyType,
+    uniqueIdPrefix: schema.uniqueIdPrefix,
   };
 
   return redirect("/scan", {

@@ -28,6 +28,103 @@ export interface EntryInfo {
   currentStatus: string | null;
 }
 
+interface ParsedSchema {
+  statusPropertyName: string;
+  statusPropertyType: "status" | "select";
+  idPropertyName: string;
+  idPropertyType: IdPropertyType;
+  uniqueIdPrefix: string | null;
+  titlePropertyName: string | null;
+  options: StatusOption[];
+}
+
+function parseSchemaProperties(
+  props: Record<string, { type: string; [key: string]: unknown }>
+): ParsedSchema | null {
+  let statusProp: {
+    name: string;
+    type: "status" | "select";
+    options: StatusOption[];
+  } | null = null;
+  let idProp: {
+    name: string;
+    type: IdPropertyType;
+    prefix: string | null;
+  } | null = null;
+  let titlePropertyName: string | null = null;
+
+  for (const [name, config] of Object.entries(props)) {
+    if (
+      config.type === "status" &&
+      "status" in config &&
+      config.status &&
+      typeof config.status === "object" &&
+      "options" in (config.status as Record<string, unknown>)
+    ) {
+      const status = config.status as { options: { name: string; color: string }[] };
+      statusProp = {
+        name,
+        type: "status",
+        options: status.options.map((o) => ({ name: o.name, color: o.color })),
+      };
+    } else if (
+      config.type === "select" &&
+      !statusProp &&
+      "select" in config &&
+      config.select &&
+      typeof config.select === "object" &&
+      "options" in (config.select as Record<string, unknown>)
+    ) {
+      const select = config.select as { options: { name: string; color: string }[] };
+      statusProp = {
+        name,
+        type: "select",
+        options: select.options.map((o) => ({ name: o.name, color: o.color })),
+      };
+    }
+
+    if (config.type === "title") {
+      titlePropertyName = name;
+    }
+
+    if (
+      config.type === "unique_id" &&
+      "unique_id" in config &&
+      config.unique_id
+    ) {
+      idProp = {
+        name,
+        type: "unique_id",
+        prefix: (config.unique_id as { prefix: string | null }).prefix,
+      };
+    } else if (config.type === "title" && !idProp) {
+      idProp = { name, type: "title", prefix: null };
+    } else if (
+      config.type === "rich_text" &&
+      !idProp &&
+      name.toLowerCase().includes("id")
+    ) {
+      idProp = { name, type: "rich_text", prefix: null };
+    }
+  }
+
+  if (!statusProp || !idProp) return null;
+
+  return {
+    statusPropertyName: statusProp.name,
+    statusPropertyType: statusProp.type,
+    idPropertyName: idProp.name,
+    idPropertyType: idProp.type,
+    uniqueIdPrefix: idProp.prefix,
+    titlePropertyName,
+    options: statusProp.options,
+  };
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function exchangeOAuthCode(code: string): Promise<{
   accessToken: string;
   workspaceName: string;
@@ -105,72 +202,10 @@ export async function listDatabases(
   for (const result of response.results) {
     if (result.object !== "data_source" || !("properties" in result)) continue;
 
-    const props = result.properties;
-    let statusProp: {
-      name: string;
-      type: "status" | "select";
-      options: StatusOption[];
-    } | null = null;
-    let idProp: {
-      name: string;
-      type: IdPropertyType;
-      prefix: string | null;
-    } | null = null;
-
-    for (const [name, config] of Object.entries(props)) {
-      if (
-        config.type === "status" &&
-        "status" in config &&
-        config.status &&
-        "options" in config.status
-      ) {
-        statusProp = {
-          name,
-          type: "status",
-          options: config.status.options.map((o) => ({
-            name: o.name,
-            color: o.color,
-          })),
-        };
-      } else if (
-        config.type === "select" &&
-        !statusProp &&
-        "select" in config &&
-        config.select &&
-        "options" in config.select
-      ) {
-        statusProp = {
-          name,
-          type: "select",
-          options: config.select.options.map((o) => ({
-            name: o.name,
-            color: o.color,
-          })),
-        };
-      }
-
-      if (
-        config.type === "unique_id" &&
-        "unique_id" in config &&
-        config.unique_id
-      ) {
-        idProp = {
-          name,
-          type: "unique_id",
-          prefix: (config.unique_id as { prefix: string | null }).prefix,
-        };
-      } else if (config.type === "title" && !idProp) {
-        idProp = { name, type: "title", prefix: null };
-      } else if (
-        config.type === "rich_text" &&
-        !idProp &&
-        name.toLowerCase().includes("id")
-      ) {
-        idProp = { name, type: "rich_text", prefix: null };
-      }
-    }
-
-    if (!statusProp || !idProp) continue;
+    const parsed = parseSchemaProperties(
+      result.properties as Record<string, { type: string; [key: string]: unknown }>
+    );
+    if (!parsed) continue;
 
     let title = "Untitled";
     if (
@@ -188,12 +223,12 @@ export async function listDatabases(
           : result.id,
       dataSourceId: result.id,
       title,
-      statusPropertyName: statusProp.name,
-      statusPropertyType: statusProp.type,
-      idPropertyName: idProp.name,
-      idPropertyType: idProp.type,
-      uniqueIdPrefix: idProp.prefix,
-      statusOptions: statusProp.options,
+      statusPropertyName: parsed.statusPropertyName,
+      statusPropertyType: parsed.statusPropertyType,
+      idPropertyName: parsed.idPropertyName,
+      idPropertyType: parsed.idPropertyType,
+      uniqueIdPrefix: parsed.uniqueIdPrefix,
+      statusOptions: parsed.options,
     });
   }
 
@@ -203,7 +238,7 @@ export async function listDatabases(
 export async function getDatabaseSchema(
   accessToken: string,
   dataSourceId: string
-) {
+): Promise<ParsedSchema> {
   const notion = getClient(accessToken);
   const ds = await notion.dataSources.retrieve({
     data_source_id: dataSourceId,
@@ -213,70 +248,14 @@ export async function getDatabaseSchema(
     throw new Error("Could not retrieve database schema");
   }
 
-  let statusPropertyName = "";
-  let statusPropertyType: "status" | "select" = "status";
-  let idPropertyName = "";
-  let idPropertyType: IdPropertyType = "title";
-  let uniqueIdPrefix: string | null = null;
-  let options: StatusOption[] = [];
-
-  for (const [name, config] of Object.entries(ds.properties)) {
-    if (
-      config.type === "status" &&
-      "status" in config &&
-      config.status &&
-      "options" in config.status
-    ) {
-      statusPropertyName = name;
-      statusPropertyType = "status";
-      options = config.status.options.map((o) => ({
-        name: o.name,
-        color: o.color,
-      }));
-    } else if (
-      config.type === "select" &&
-      !statusPropertyName &&
-      "select" in config &&
-      config.select &&
-      "options" in config.select
-    ) {
-      statusPropertyName = name;
-      statusPropertyType = "select";
-      options = config.select.options.map((o) => ({
-        name: o.name,
-        color: o.color,
-      }));
-    }
-
-    if (
-      config.type === "unique_id" &&
-      "unique_id" in config &&
-      config.unique_id
-    ) {
-      idPropertyName = name;
-      idPropertyType = "unique_id";
-      uniqueIdPrefix = (config.unique_id as { prefix: string | null }).prefix;
-    } else if (config.type === "title" && !idPropertyName) {
-      idPropertyName = name;
-      idPropertyType = "title";
-    } else if (
-      config.type === "rich_text" &&
-      !idPropertyName &&
-      name.toLowerCase().includes("id")
-    ) {
-      idPropertyName = name;
-      idPropertyType = "rich_text";
-    }
+  const parsed = parseSchemaProperties(
+    ds.properties as Record<string, { type: string; [key: string]: unknown }>
+  );
+  if (!parsed) {
+    throw new Error("Database missing required status or ID properties");
   }
 
-  return {
-    statusPropertyName,
-    statusPropertyType,
-    idPropertyName,
-    idPropertyType,
-    uniqueIdPrefix,
-    options,
-  };
+  return parsed;
 }
 
 /**
@@ -284,7 +263,7 @@ export async function getDatabaseSchema(
  */
 function parseUniqueIdCode(code: string, prefix: string | null): number | null {
   if (prefix) {
-    const prefixPattern = new RegExp(`^${prefix}-?`, "i");
+    const prefixPattern = new RegExp(`^${escapeRegExp(prefix)}-?`, "i");
     const stripped = code.replace(prefixPattern, "");
     const num = parseInt(stripped, 10);
     return isNaN(num) ? null : num;
@@ -351,27 +330,15 @@ export async function createEntry(
   dataSourceId: string,
   idPropertyName: string,
   idPropertyType: IdPropertyType,
-  code: string
+  code: string,
+  titlePropertyName?: string
 ): Promise<EntryInfo> {
   const notion = getClient(accessToken);
   let properties: Parameters<typeof notion.pages.create>[0]["properties"];
 
   if (idPropertyType === "unique_id") {
-    const ds = await notion.dataSources.retrieve({
-      data_source_id: dataSourceId,
-    });
-    if (!("properties" in ds)) throw new Error("Cannot read database schema");
-
-    let titlePropName: string | null = null;
-    for (const [name, config] of Object.entries(ds.properties)) {
-      if (config.type === "title") {
-        titlePropName = name;
-        break;
-      }
-    }
-
-    properties = titlePropName
-      ? { [titlePropName]: { title: [{ text: { content: code } }] } }
+    properties = titlePropertyName
+      ? { [titlePropertyName]: { title: [{ text: { content: code } }] } }
       : {};
   } else if (idPropertyType === "title") {
     properties = {
