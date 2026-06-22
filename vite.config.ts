@@ -7,4 +7,10 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  server: {
+    host: process.env.HOST || "0.0.0.0",
+    port: Number(process.env.PORT) || 5173,
+    // TODO: Remove this once we have a proper domain for the app
+    allowedHosts: [".ts.net"],
+  },
 });
