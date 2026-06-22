@@ -6,4 +6,6 @@ export default [
   route("auth/callback", "routes/auth.callback.tsx"),
   route("scan", "routes/scan.tsx"),
   route("status/:code", "routes/status.$code.tsx"),
+  route("terms", "routes/terms.tsx"),
+  route("privacy", "routes/privacy.tsx"),
 ] satisfies RouteConfig;

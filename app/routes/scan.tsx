@@ -1,4 +1,4 @@
-import { redirect, useNavigate, Form } from "react-router";
+import { redirect, useNavigate, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
 import {
@@ -52,17 +52,28 @@ export default function ScanPage() {
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-col">
       <header className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-slate-800">Moving Buddy</h1>
-        <Form method="post">
-          <button
-            type="submit"
+        <Link to="/" prefetch="intent" className="text-xl font-bold text-slate-800 hover:text-slate-600 transition-colors">
+          Moving Buddy
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            prefetch="intent"
             className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
           >
-            Log Out
-          </button>
-        </Form>
+            Databases
+          </Link>
+          <Form method="post">
+            <button
+              type="submit"
+              className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              Log Out
+            </button>
+          </Form>
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center">

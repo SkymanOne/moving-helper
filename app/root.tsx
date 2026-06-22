@@ -23,10 +23,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-slate-50 text-slate-900 min-h-dvh">
-        <div className="max-w-md mx-auto px-4 py-6 min-h-dvh flex flex-col">
+      <body className="bg-slate-50 text-slate-900 pb-20">
+        <div className="max-w-md mx-auto px-4 py-6">
           {children}
         </div>
+        <footer className="fixed bottom-0 left-0 right-0 bg-slate-50/90 backdrop-blur-sm border-t border-slate-100 py-2 text-center text-xs text-slate-400 space-y-0.5">
+          <p>
+            Developed by{" "}
+            <a
+              href="https://nikolish.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-600"
+            >
+              nikolish.in
+            </a>
+            {" · "}
+            <a href="/terms" className="underline hover:text-slate-600">
+              Terms
+            </a>
+            {" · "}
+            <a href="/privacy" className="underline hover:text-slate-600">
+              Privacy
+            </a>
+          </p>
+          <p>&copy; {new Date().getFullYear()} Moving Buddy</p>
+        </footer>
         <ScrollRestoration />
         <Scripts />
       </body>

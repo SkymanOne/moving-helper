@@ -118,9 +118,11 @@ export default function StatusPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-col">
       <header className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">Moving Buddy</h1>
+        <Link to="/" prefetch="intent" className="text-xl font-bold text-slate-800 hover:text-slate-600 transition-colors">
+          Moving Buddy
+        </Link>
       </header>
 
       <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 text-center">

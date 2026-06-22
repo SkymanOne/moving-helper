@@ -1,4 +1,4 @@
-import { redirect, useLoaderData, Link } from "react-router";
+import { redirect, useLoaderData, Link, useNavigation } from "react-router";
 import type { Route } from "./+types/_index";
 import { listDatabases } from "~/lib/notion.server";
 import {
@@ -78,9 +78,11 @@ export async function action({ request }: Route.ActionArgs) {
 export default function SetupPage() {
   const { authenticated, databases, hasSelection, workspaceName } =
     useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
         <h1 className="text-4xl font-bold text-slate-800 tracking-tight">
           Moving Buddy
@@ -102,7 +104,10 @@ export default function SetupPage() {
           <>
             {workspaceName && (
               <p className="text-sm text-slate-400 text-center mb-4">
-                Connected to <span className="font-medium text-slate-600">{workspaceName}</span>
+                Connected to{" "}
+                <span className="font-medium text-slate-600">
+                  {workspaceName}
+                </span>
               </p>
             )}
             {hasSelection && (
@@ -113,7 +118,16 @@ export default function SetupPage() {
                 Continue to Scanner
               </Link>
             )}
-            <DatabasePicker databases={databases} />
+            {isSubmitting ? (
+              <div className="text-center py-8">
+                <div className="inline-block w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                <p className="mt-3 text-sm text-slate-400">
+                  Connecting to database...
+                </p>
+              </div>
+            ) : (
+              <DatabasePicker databases={databases} />
+            )}
           </>
         )}
       </div>
