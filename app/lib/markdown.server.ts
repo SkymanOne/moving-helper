@@ -15,5 +15,9 @@ export async function renderMarkdown(source: string): Promise<string> {
       a: ["href", "target", "rel"],
       img: ["src", "alt", "title"],
     },
+    allowedSchemesByTag: {
+      a: ["https", "http", "mailto"],
+      img: ["https"],
+    },
   });
 }

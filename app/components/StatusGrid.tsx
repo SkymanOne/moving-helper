@@ -52,7 +52,7 @@ export function StatusGrid({
             key={option.name}
             onClick={() => onSelect(option.name)}
             disabled={loading}
-            className={`min-h-14 px-4 py-3 rounded-xl font-semibold text-center border-2 transition-all active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed ${colors} ${isActive ? "ring-2 ring-offset-1 ring-slate-400" : ""}`}
+            className={`min-h-14 px-4 py-3 rounded-xl font-semibold text-center border-2 transition-all active:scale-[0.96] disabled:opacity-50 disabled:cursor-not-allowed ${colors} ${isActive ? "ring-2 ring-offset-1 ring-text-muted" : ""}`}
           >
             {option.name}
           </button>

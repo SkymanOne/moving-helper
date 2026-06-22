@@ -1,12 +1,7 @@
 import { redirect, useNavigate, useNavigation, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
-import {
-  getAuth,
-  clearAuth,
-  getSelectedDb,
-  clearSelectedDb,
-} from "~/lib/cookies.server";
+import { getAuth, getSelectedDb } from "~/lib/cookies.server";
 
 const ScannerView = lazy(() => import("~/components/ScannerView"));
 
@@ -16,13 +11,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   const selected = await getSelectedDb(request);
   if (!selected) throw redirect("/");
   return null;
-}
-
-export async function action() {
-  const headers = new Headers();
-  headers.append("Set-Cookie", await clearAuth());
-  headers.append("Set-Cookie", await clearSelectedDb());
-  return redirect("/", { headers });
 }
 
 export default function ScanPage() {
@@ -56,21 +44,21 @@ export default function ScanPage() {
   return (
     <div className="flex flex-col">
       <header className="flex items-center justify-between mb-4">
-        <Link to="/" prefetch="intent" className="text-xl font-bold text-slate-800 hover:text-slate-600 transition-colors">
+        <Link to="/" prefetch="intent" className="text-xl font-bold text-heading hover:text-text transition-colors">
           Moving Buddy
         </Link>
         <div className="flex items-center gap-2">
           <Link
             to="/"
             prefetch="intent"
-            className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+            className="text-sm text-text-muted hover:text-heading px-3 py-1 rounded-lg hover:bg-base-dim transition-colors"
           >
             Databases
           </Link>
-          <Form method="post">
+          <Form method="post" action="/auth/logout" reloadDocument>
             <button
               type="submit"
-              className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+              className="text-sm text-text-muted hover:text-heading px-3 py-1 rounded-lg hover:bg-base-dim transition-colors"
             >
               Log Out
             </button>
@@ -81,8 +69,8 @@ export default function ScanPage() {
       <div className="flex-1 flex flex-col items-center justify-center">
         {isNavigating ? (
           <div className="text-center py-12">
-            <div className="inline-block w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-            <p className="mt-3 text-sm text-slate-400">Loading...</p>
+            <div className="inline-block w-6 h-6 border-2 border-base-border border-t-accent rounded-full animate-spin" />
+            <p className="mt-3 text-sm text-text-muted">Loading...</p>
           </div>
         ) : error ? (
           <div className="text-center px-4">
@@ -90,7 +78,7 @@ export default function ScanPage() {
             <p className="text-red-600 font-medium">{error}</p>
             <button
               onClick={() => setError(null)}
-              className="mt-4 px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors"
+              className="mt-4 px-4 py-2 bg-accent text-white rounded-xl hover:bg-accent-hover transition-colors"
             >
               Try Again
             </button>
@@ -98,7 +86,7 @@ export default function ScanPage() {
         ) : (
           <Suspense
             fallback={
-              <div className="text-center text-slate-500">
+              <div className="text-center text-text-muted">
                 <p>Starting camera...</p>
               </div>
             }
@@ -109,7 +97,7 @@ export default function ScanPage() {
       </div>
 
       {!isNavigating && (
-        <p className="text-center text-sm text-slate-400 mt-4 pb-4">
+        <p className="text-center text-sm text-text-muted mt-4 pb-4">
           Point your camera at a barcode or QR code
         </p>
       )}

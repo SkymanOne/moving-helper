@@ -21,6 +21,14 @@ export const selectedDbCookie = createCookie("selectedDb", {
   secrets: [process.env.SESSION_SECRET],
 });
 
+export const oauthStateCookie = createCookie("oauth_state", {
+  maxAge: 60 * 10, // 10 minutes
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  secrets: [process.env.SESSION_SECRET],
+});
+
 export interface AuthSession {
   accessToken: string;
   workspaceName: string;

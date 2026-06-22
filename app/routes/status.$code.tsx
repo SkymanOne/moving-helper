@@ -1,7 +1,7 @@
 import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
-import { getAuth, getSelectedDb } from "~/lib/cookies.server";
+import { getAuth, getSelectedDb, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
 import {
   findEntryByCode,
   createEntry,
@@ -22,28 +22,48 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const code = decodeURIComponent(params.code);
 
-  const [schema, entry] = await Promise.all([
-    getDatabaseSchema(auth.accessToken, selected.dataSourceId),
-    findEntryByCode(
-      auth.accessToken,
-      selected.dataSourceId,
-      selected.idPropertyName,
-      selected.idPropertyType,
-      selected.uniqueIdPrefix,
-      code
-    ),
-  ]);
+  let schema, entry;
+  try {
+    [schema, entry] = await Promise.all([
+      getDatabaseSchema(auth.accessToken, selected.dataSourceId),
+      findEntryByCode(
+        auth.accessToken,
+        selected.dataSourceId,
+        selected.idPropertyName,
+        selected.idPropertyType,
+        selected.uniqueIdPrefix,
+        code
+      ),
+    ]);
+  } catch {
+    return redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth()],
+        ["Set-Cookie", await clearSelectedDb()],
+      ],
+    });
+  }
 
-  const resolvedEntry =
-    entry ??
-    (await createEntry(
-      auth.accessToken,
-      selected.dataSourceId,
-      selected.idPropertyName,
-      selected.idPropertyType,
-      code,
-      schema.titlePropertyName ?? undefined
-    ));
+  let resolvedEntry;
+  try {
+    resolvedEntry =
+      entry ??
+      (await createEntry(
+        auth.accessToken,
+        selected.dataSourceId,
+        selected.idPropertyName,
+        selected.idPropertyType,
+        code,
+        schema.titlePropertyName ?? undefined
+      ));
+  } catch {
+    return redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth()],
+        ["Set-Cookie", await clearSelectedDb()],
+      ],
+    });
+  }
 
   return {
     code,
@@ -58,24 +78,22 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const auth = await getAuth(request);
   if (!auth) throw redirect("/");
+  const selected = await getSelectedDb(request);
+  if (!selected) throw redirect("/");
 
   const formData = await request.formData();
   const pageId = formData.get("pageId") as string;
   const statusValue = formData.get("statusValue") as string;
-  const statusPropertyName = formData.get("statusPropertyName") as string;
-  const statusPropertyType = formData.get("statusPropertyType") as
-    | "status"
-    | "select";
 
-  if (!pageId || !statusValue || !statusPropertyName) {
+  if (!pageId || !statusValue) {
     throw new Response("Missing required fields", { status: 400 });
   }
 
   await updateStatus(
     auth.accessToken,
     pageId,
-    statusPropertyName,
-    statusPropertyType,
+    selected.statusPropertyName,
+    selected.statusPropertyType,
     statusValue
   );
 
@@ -83,14 +101,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function StatusPage() {
-  const {
-    code,
-    pageId,
-    currentStatus,
-    statusOptions,
-    statusPropertyName,
-    statusPropertyType,
-  } = useLoaderData<typeof loader>();
+  const { code, pageId, currentStatus, statusOptions } =
+    useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<typeof action>();
   const isUpdating = fetcher.state !== "idle";
@@ -111,24 +123,22 @@ export default function StatusPage() {
     const formData = new FormData();
     formData.set("pageId", pageId);
     formData.set("statusValue", statusValue);
-    formData.set("statusPropertyName", statusPropertyName);
-    formData.set("statusPropertyType", statusPropertyType);
     fetcher.submit(formData, { method: "post" });
   }
 
   return (
     <div className="flex flex-col">
       <header className="mb-6">
-        <Link to="/" prefetch="intent" className="text-xl font-bold text-slate-800 hover:text-slate-600 transition-colors">
+        <Link to="/" prefetch="intent" className="text-xl font-bold text-heading hover:text-text transition-colors">
           Moving Buddy
         </Link>
       </header>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 text-center">
-        <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-1">
+      <div className="bg-base rounded-xl border border-base-border p-4 mb-6 text-center">
+        <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-1">
           Scanned Code
         </p>
-        <p className="text-2xl font-bold text-slate-800 font-mono break-all">
+        <p className="text-2xl font-bold text-heading font-mono break-all">
           {code}
         </p>
       </div>
@@ -140,7 +150,7 @@ export default function StatusPage() {
       )}
 
       <div className="mb-6">
-        <p className="text-sm text-slate-500 font-medium mb-3">
+        <p className="text-sm text-text-muted font-medium mb-3">
           Choose a status:
         </p>
         <StatusGrid
@@ -154,7 +164,7 @@ export default function StatusPage() {
       <div className="mt-auto pb-4">
         <Link
           to="/scan"
-          className="block w-full text-center px-4 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 active:scale-[0.98] transition-all"
+          className="block w-full text-center px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
         >
           Re-Scan
         </Link>
