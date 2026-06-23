@@ -3,7 +3,9 @@
 	"name": "moving-buddy",
 	"main": "./workers/app.ts",
 	"compatibility_date": "2026-06-16",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": false,
 		"head_sampling_rate": 1,
@@ -25,8 +27,17 @@
 		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback"
 	},
 	"secrets": {
-		"required": ["SESSION_SECRET", "NOTION_CLIENT_SECRET"]
+		"required": [
+			"SESSION_SECRET",
+			"NOTION_CLIENT_SECRET"
+		]
 	},
+	"kv_namespaces": [
+		{
+			"binding": "SHARE_CODES",
+			"id": "df66d4f3a4eb460bad41df9f596d2835"
+		}
+	],
 	"routes": [
 		{
 			"pattern": "moving-buddy.com",

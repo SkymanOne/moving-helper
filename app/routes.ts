@@ -5,6 +5,8 @@ export default [
   route("auth/login", "routes/auth.login.tsx"),
   route("auth/logout", "routes/auth.logout.tsx"),
   route("auth/callback", "routes/auth.callback.tsx"),
+  route("join", "routes/join.tsx"),
+  route("share", "routes/share.tsx"),
   route("scan", "routes/scan.tsx"),
   route("status/:code", "routes/status.$code.tsx"),
   route("terms", "routes/terms.tsx"),

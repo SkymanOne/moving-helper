@@ -4,10 +4,11 @@
 
 Moving Buddy collects the minimum data needed to function:
 
-- **Notion OAuth token** — stored in an encrypted, HTTP-only cookie on your device. Used to access your Notion workspace on your behalf. Never stored on our servers.
+- **Notion OAuth token** — stored in an encrypted, HTTP-only cookie on your device. Used to access your Notion workspace on your behalf.
 - **Selected database preference** — stored in a cookie on your device so you don't have to re-select it each time.
+- **Share codes** — when you generate a share code so others can scan with your database, a copy of your Notion access token and database selection is stored on Cloudflare's edge network (KV). This lets others use the scanner without their own Notion account. You can revoke share codes at any time from the Manage Share Codes page.
 
-That's it. We don't collect analytics, tracking data, personal information, or anything else.
+We don't collect analytics, tracking data, personal information, or anything else.
 
 ## Camera Access
 
@@ -19,11 +20,11 @@ Moving Buddy connects to the [Notion API](https://developers.notion.com) to read
 
 ## Data Storage
 
-All data stays on your device (in browser cookies) and in your Notion workspace. Moving Buddy does not operate a database or server-side storage for user data.
+Most data stays on your device (in browser cookies) and in your Notion workspace. The only server-side storage is share codes, which are kept on Cloudflare's edge network so that invited users can access your scanner session.
 
 ## Deleting Your Data
 
-Click "Log Out" in the app to clear all cookies. You can also revoke Moving Buddy's access to your Notion workspace at any time from **Settings & members > My connections** in Notion.
+Click "Log Out" in the app to clear all cookies. To delete share codes, go to **Manage Share Codes** and revoke each code. You can also revoke Moving Buddy's access to your Notion workspace at any time from **Settings & members > My connections** in Notion.
 
 ## Contact
 

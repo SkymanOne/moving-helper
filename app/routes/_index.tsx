@@ -1,5 +1,5 @@
 import { redirect, useLoaderData, useRevalidator, Link, useNavigation, Form } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import type { Route } from "./+types/_index";
 import { listDatabases, getDatabaseSchema } from "~/lib/notion.server";
 import {
@@ -104,15 +104,44 @@ export default function SetupPage() {
     useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
-  const { revalidate, state: revalidatorState } = useRevalidator();
-  const isLoading = revalidatorState === "loading";
+  const { revalidate } = useRevalidator();
+
+  const POLL_INTERVAL = 3000;
+  const MAX_RETRIES = 10;
+
+  const pollingStartedAt = useRef<number | null>(null);
+  const retryCount = useRef(0);
 
   useEffect(() => {
     if (authenticated && databases.length === 0) {
-      const timer = setTimeout(revalidate, 1500);
+      if (pollingStartedAt.current === null) {
+        pollingStartedAt.current = Date.now();
+        retryCount.current = 0;
+      }
+      if (retryCount.current >= MAX_RETRIES) return;
+      const timer = setTimeout(() => {
+        retryCount.current += 1;
+        revalidate();
+      }, POLL_INTERVAL);
       return () => clearTimeout(timer);
     }
+    if (databases.length > 0 || !authenticated) {
+      pollingStartedAt.current = null;
+      retryCount.current = 0;
+    }
   }, [authenticated, databases.length, revalidate]);
+
+  const isPolling =
+    authenticated &&
+    databases.length === 0 &&
+    pollingStartedAt.current !== null &&
+    retryCount.current < MAX_RETRIES;
+
+  const handleRetry = useCallback(() => {
+    pollingStartedAt.current = Date.now();
+    retryCount.current = 0;
+    revalidate();
+  }, [revalidate]);
 
   return (
     <div className="flex flex-col">
@@ -172,6 +201,20 @@ export default function SetupPage() {
             >
               Connect to Notion
             </a>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-base-border" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-base px-2 text-text-muted">or</span>
+              </div>
+            </div>
+            <Link
+              to="/join"
+              className="block w-full text-center px-4 py-3 text-text font-semibold rounded-xl border-2 border-base-border hover:border-accent hover:text-accent active:scale-[0.98] transition-all"
+            >
+              Scan for someone else
+            </Link>
           </>
         ) : (
           <>
@@ -184,14 +227,22 @@ export default function SetupPage() {
               </p>
             )}
             {hasSelection && (
-              <Link
-                to="/scan"
-                className="block w-full text-center mb-4 px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
-              >
-                Continue to Scanner
-              </Link>
+              <>
+                <Link
+                  to="/scan"
+                  className="block w-full text-center mb-4 px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
+                >
+                  Continue to Scanner
+                </Link>
+                <Link
+                  to="/share"
+                  className="block w-full text-center mb-4 px-4 py-2 text-sm text-text-muted font-medium rounded-xl border border-base-border hover:border-accent hover:text-accent active:scale-[0.98] transition-all"
+                >
+                  Manage Share Codes
+                </Link>
+              </>
             )}
-            {isSubmitting || (isLoading && databases.length === 0) ? (
+            {isSubmitting || isPolling ? (
               <div className="text-center py-8">
                 <div className="inline-block w-6 h-6 border-2 border-base-border border-t-accent rounded-full animate-spin" />
                 <p className="mt-3 text-sm text-text-muted">
@@ -199,7 +250,7 @@ export default function SetupPage() {
                 </p>
               </div>
             ) : (
-              <DatabasePicker databases={databases} />
+              <DatabasePicker databases={databases} onRetry={handleRetry} />
             )}
             <Form method="post" action="/auth/logout" reloadDocument className="mt-6 text-center">
               <button

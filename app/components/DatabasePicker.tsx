@@ -3,9 +3,10 @@ import type { DatabaseInfo } from "~/lib/notion.server";
 
 interface DatabasePickerProps {
   databases: Pick<DatabaseInfo, "dataSourceId" | "title">[];
+  onRetry?: () => void;
 }
 
-export function DatabasePicker({ databases }: DatabasePickerProps) {
+export function DatabasePicker({ databases, onRetry }: DatabasePickerProps) {
   if (databases.length === 0) {
     return (
       <div className="text-center text-text-muted py-8">
@@ -15,6 +16,15 @@ export function DatabasePicker({ databases }: DatabasePickerProps) {
           a <strong>ID</strong> field, and that you&apos;ve shared it with
           your integration.
         </p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-4 px-4 py-2 text-sm font-medium text-accent border border-accent rounded-xl hover:bg-accent hover:text-white active:scale-[0.98] transition-all"
+          >
+            Check Again
+          </button>
+        )}
       </div>
     );
   }
