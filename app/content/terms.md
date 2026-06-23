@@ -10,7 +10,7 @@ Moving Buddy is a tool that helps you track moving boxes by scanning barcode lab
 
 ## 3. Your Notion Data
 
-Moving Buddy accesses your Notion workspace only with your explicit permission. We do not store, copy, or share your Notion data on our servers. All data interactions happen directly between your browser and the Notion API. Your OAuth access token is stored in an encrypted cookie on your device.
+Moving Buddy accesses your Notion workspace only with your explicit permission. All data interactions happen directly between your browser and the Notion API. Your OAuth access token is stored in a signed, HTTP-only cookie on your device. If you generate a share code, a copy of your access token is also stored on Cloudflare's edge network (KV) so that invited guests can use the scanner. You can revoke share codes at any time.
 
 ## 4. No Warranty
 
