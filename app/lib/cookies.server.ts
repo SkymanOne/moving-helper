@@ -1,4 +1,4 @@
-import { createCookie } from "react-router";
+import { createCookie, redirect } from "react-router";
 import type { IdPropertyType } from "~/lib/notion.server";
 
 const COOKIE_OPTS = {
@@ -40,7 +40,6 @@ export interface AuthSession {
 }
 
 export interface SelectedDb {
-  databaseId: string;
   dataSourceId: string;
   statusPropertyName: string;
   statusPropertyType: "status" | "select";
@@ -53,7 +52,6 @@ function isSelectedDb(value: unknown): value is SelectedDb {
   if (!value || typeof value !== "object") return false;
   const d = value as Record<string, unknown>;
   return (
-    typeof d.databaseId === "string" &&
     typeof d.dataSourceId === "string" &&
     typeof d.statusPropertyName === "string" &&
     (d.statusPropertyType === "status" || d.statusPropertyType === "select") &&
@@ -105,4 +103,27 @@ export async function setSelectedDb(
 
 export async function clearSelectedDb(cookies: AppCookies): Promise<string> {
   return await cookies.selectedDb.serialize(null, { maxAge: 0 });
+}
+
+/** Set-Cookie headers that clear both device cookies (auth + selectedDb). */
+export async function clearSessionHeaders(
+  cookies: AppCookies
+): Promise<[string, string][]> {
+  return [
+    ["Set-Cookie", await clearAuth(cookies)],
+    ["Set-Cookie", await clearSelectedDb(cookies)],
+  ];
+}
+
+/**
+ * Redirect for a session that no longer resolves, clearing the device cookies.
+ * Guests (who hold a share code) get the "revoked" message; owners go home.
+ */
+export async function lostSessionRedirect(
+  request: Request,
+  cookies: AppCookies
+): Promise<Response> {
+  const auth = await getAuth(request, cookies);
+  const dest = auth?.shareCode ? "/?error=revoked" : "/";
+  return redirect(dest, { headers: await clearSessionHeaders(cookies) });
 }

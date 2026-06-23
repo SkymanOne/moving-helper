@@ -32,14 +32,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     throw redirect("/?error=invalid_state");
   }
 
-  const {
-    accessToken,
-    refreshToken,
-    expiresAt,
-    botId,
-    workspaceName,
-    workspaceIcon,
-  } = await exchangeOAuthCode(code, env);
+  const { accessToken, refreshToken, expiresAt, botId, workspaceName } =
+    await exchangeOAuthCode(code, env);
 
   // The access token lives server-side in the workspace record (keyed by
   // botId); the cookie only carries the owner's identity.
@@ -51,7 +45,6 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       refreshToken,
       tokenExpiresAt: expiresAt,
       workspaceName,
-      workspaceIcon,
     },
     env.SESSION_SECRET
   );

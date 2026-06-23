@@ -1,7 +1,7 @@
-import { redirect, useNavigate, useNavigation, Form, Link } from "react-router";
+import { useNavigate, useNavigation, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
-import { getAuth, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { lostSessionRedirect } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import { resolveSession } from "~/lib/share.server";
 
@@ -11,16 +11,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.WORKSPACES, env);
-  if (!session) {
-    const auth = await getAuth(request, cookies);
-    const dest = auth?.shareCode ? "/?error=revoked" : "/";
-    throw redirect(dest, {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
-  }
+  if (!session) throw await lostSessionRedirect(request, cookies);
   return null;
 }
 

@@ -3,10 +3,15 @@ import type { DatabaseInfo } from "~/lib/notion.server";
 
 interface DatabasePickerProps {
   databases: Pick<DatabaseInfo, "dataSourceId" | "title">[];
+  selectedDataSourceId?: string | null;
   onRetry?: () => void;
 }
 
-export function DatabasePicker({ databases, onRetry }: DatabasePickerProps) {
+export function DatabasePicker({
+  databases,
+  selectedDataSourceId,
+  onRetry,
+}: DatabasePickerProps) {
   if (databases.length === 0) {
     return (
       <div className="text-center text-text-muted py-8">
@@ -38,20 +43,37 @@ export function DatabasePicker({ databases, onRetry }: DatabasePickerProps) {
     "bg-orange-50 border-orange-200 hover:border-orange-400",
   ];
 
+  const hasSelection = databases.some(
+    (db) => db.dataSourceId === selectedDataSourceId
+  );
+
   return (
     <div className="space-y-3">
-      <p className="text-sm text-text-muted font-medium">Choose a database:</p>
-      {databases.map((db, i) => (
-        <Form method="post" key={db.dataSourceId}>
-          <input type="hidden" name="dataSourceId" value={db.dataSourceId} />
-          <button
-            type="submit"
-            className={`w-full text-left px-4 py-3 rounded-xl border-2 hover:shadow-sm transition-all active:scale-[0.98] ${colors[i % colors.length]}`}
-          >
-            <span className="font-medium text-heading">{db.title}</span>
-          </button>
-        </Form>
-      ))}
+      <p className="text-sm text-text-muted font-medium">
+        {hasSelection ? "Switch database:" : "Choose a database:"}
+      </p>
+      {databases.map((db, i) => {
+        const isSelected = db.dataSourceId === selectedDataSourceId;
+        return (
+          <Form method="post" key={db.dataSourceId}>
+            <input type="hidden" name="dataSourceId" value={db.dataSourceId} />
+            <button
+              type="submit"
+              aria-pressed={isSelected}
+              className={`w-full text-left px-4 py-3 rounded-xl border-2 hover:shadow-sm transition-all active:scale-[0.98] ${colors[i % colors.length]} ${isSelected ? "ring-2 ring-accent ring-offset-1" : ""}`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-medium text-heading">{db.title}</span>
+                {isSelected && (
+                  <span className="shrink-0 text-xs font-semibold text-accent">
+                    Selected
+                  </span>
+                )}
+              </span>
+            </button>
+          </Form>
+        );
+      })}
     </div>
   );
 }

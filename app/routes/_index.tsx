@@ -4,14 +4,17 @@ import type { Route } from "./+types/_index";
 import { listDatabases, getDatabaseSchema } from "~/lib/notion.server";
 import {
   getAuth,
-  getSelectedDb,
   setSelectedDb,
-  clearAuth,
-  clearSelectedDb,
+  clearSessionHeaders,
+  lostSessionRedirect,
   type SelectedDb,
 } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
-import { resolveAuth, setWorkspaceSelectedDb } from "~/lib/share.server";
+import {
+  resolveAuth,
+  setWorkspaceSelectedDb,
+  selectedDbFor,
+} from "~/lib/share.server";
 import { DatabasePicker } from "~/components/DatabasePicker";
 
 export function meta() {
@@ -33,18 +36,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const error = url.searchParams.get("error");
 
   if (!resolved) {
-    const auth = await getAuth(request, cookies);
-
     // A stale cookie that no longer resolves (guest code revoked, or the
-    // owner's workspace was disconnected/expired) — clear it.
-    if (auth) {
-      const dest = auth.shareCode ? "/?error=revoked" : "/";
-      throw redirect(dest, {
-        headers: [
-          ["Set-Cookie", await clearAuth(cookies)],
-          ["Set-Cookie", await clearSelectedDb(cookies)],
-        ],
-      });
+    // owner's workspace was disconnected/expired) is cleared; an anonymous
+    // visitor just sees the connect screen.
+    if (await getAuth(request, cookies)) {
+      throw await lostSessionRedirect(request, cookies);
     }
 
     return {
@@ -52,6 +48,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       isOwner: false,
       databases: [],
       hasSelection: false,
+      selectedDataSourceId: null,
       workspaceName: null,
       error,
     };
@@ -61,25 +58,17 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   try {
     databases = await listDatabases(resolved.accessToken);
   } catch {
-    return redirect("/", {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
+    return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
-  // Owners' selection lives in the workspace record; guests use their own
-  // cookie, falling back to a clone of the owner's current selection.
-  const selectedDb = resolved.isOwner
-    ? resolved.record.selectedDb
-    : (await getSelectedDb(request, cookies)) ?? resolved.record.selectedDb;
+  const selectedDb = await selectedDbFor(resolved, request, cookies);
 
   return {
     authenticated: true as const,
     isOwner: resolved.isOwner,
     databases,
     hasSelection: !!selectedDb,
+    selectedDataSourceId: selectedDb?.dataSourceId ?? null,
     workspaceName: resolved.workspaceName || null,
     error: null,
   };
@@ -111,16 +100,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     schema = await getDatabaseSchema(resolved.accessToken, dataSourceId);
   } catch (e) {
     if (e instanceof Response) throw e; // preserve the 400
-    return redirect("/", {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
+    return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
   const selected: SelectedDb = {
-    databaseId: dataSourceId,
     dataSourceId,
     statusPropertyName: schema.statusPropertyName,
     statusPropertyType: schema.statusPropertyType,
@@ -156,8 +139,15 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function SetupPage() {
-  const { authenticated, isOwner, databases, hasSelection, workspaceName, error } =
-    useLoaderData<typeof loader>();
+  const {
+    authenticated,
+    isOwner,
+    databases,
+    hasSelection,
+    selectedDataSourceId,
+    workspaceName,
+    error,
+  } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const { revalidate } = useRevalidator();
@@ -306,7 +296,11 @@ export default function SetupPage() {
                 </p>
               </div>
             ) : (
-              <DatabasePicker databases={databases} onRetry={handleRetry} />
+              <DatabasePicker
+                databases={databases}
+                selectedDataSourceId={selectedDataSourceId}
+                onRetry={handleRetry}
+              />
             )}
             <Form method="post" action="/auth/logout" reloadDocument className="mt-6 text-center">
               <button

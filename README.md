@@ -1,4 +1,17 @@
-# Moving Buddy
+<p align="center">
+  <img src="box.svg" alt="Moving Buddy" width="120" height="120" />
+</p>
+
+<h1 align="center">Moving Buddy</h1>
+
+<p align="center">
+  <a href="https://github.com/SkymanOne/moving-helper/actions/workflows/deploy.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/SkymanOne/moving-helper/deploy.yml?branch=main&label=build" alt="Build status" />
+  </a>
+  <a href="https://moving-buddy.com">
+    <img src="https://img.shields.io/website?url=https%3A%2F%2Fmoving-buddy.com&label=deployment&up_message=live&down_message=down" alt="Deployment status" />
+  </a>
+</p>
 
 A simple app that takes the chaos out of moving day. Stick barcode labels on your boxes, scan them with your phone, and keep track of what's packed, in transit, or already at the new place — all synced with a Notion database.
 

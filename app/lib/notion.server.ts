@@ -7,15 +7,8 @@ function getClient(accessToken: string) {
 export type IdPropertyType = "title" | "rich_text" | "unique_id";
 
 export interface DatabaseInfo {
-  id: string;
   dataSourceId: string;
   title: string;
-  statusPropertyName: string;
-  statusPropertyType: "status" | "select";
-  idPropertyName: string;
-  idPropertyType: IdPropertyType;
-  uniqueIdPrefix: string | null;
-  statusOptions: StatusOption[];
 }
 
 export interface StatusOption {
@@ -141,7 +134,6 @@ export interface OAuthTokens {
 export interface OAuthResult extends OAuthTokens {
   botId: string;
   workspaceName: string;
-  workspaceIcon: string | null;
 }
 
 interface NotionTokenResponse {
@@ -150,7 +142,6 @@ interface NotionTokenResponse {
   expires_in?: number | null;
   bot_id: string;
   workspace_name: string;
-  workspace_icon: string | null;
 }
 
 function tokenAuthHeader(env: NotionEnv): string {
@@ -196,7 +187,6 @@ export async function exchangeOAuthCode(
     expiresAt: expiresAtFrom(data.expires_in),
     botId: data.bot_id,
     workspaceName: data.workspace_name,
-    workspaceIcon: data.workspace_icon,
   };
 }
 
@@ -264,6 +254,8 @@ export async function listDatabases(
   for (const result of response.results) {
     if (result.object !== "data_source" || !("properties" in result)) continue;
 
+    // Parsing also filters out data sources without the required status/ID
+    // properties; only the id and title are surfaced for selection.
     const parsed = parseSchemaProperties(
       result.properties as Record<string, { type: string; [key: string]: unknown }>
     );
@@ -278,20 +270,7 @@ export async function listDatabases(
       title = result.title.map((t) => t.plain_text).join("");
     }
 
-    databases.push({
-      id:
-        "database_parent" in result && result.database_parent
-          ? (result.database_parent as { database_id: string }).database_id
-          : result.id,
-      dataSourceId: result.id,
-      title,
-      statusPropertyName: parsed.statusPropertyName,
-      statusPropertyType: parsed.statusPropertyType,
-      idPropertyName: parsed.idPropertyName,
-      idPropertyType: parsed.idPropertyType,
-      uniqueIdPrefix: parsed.uniqueIdPrefix,
-      statusOptions: parsed.options,
-    });
+    databases.push({ dataSourceId: result.id, title });
   }
 
   return databases;

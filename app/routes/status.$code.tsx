@@ -1,7 +1,10 @@
 import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
-import { getAuth, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import {
+  clearSessionHeaders,
+  lostSessionRedirect,
+} from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   findEntryByCode,
@@ -20,16 +23,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.WORKSPACES, env);
-  if (!session) {
-    const auth = await getAuth(request, cookies);
-    const dest = auth?.shareCode ? "/?error=revoked" : "/";
-    throw redirect(dest, {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
-  }
+  if (!session) throw await lostSessionRedirect(request, cookies);
 
   const code = decodeURIComponent(params.code);
 
@@ -47,12 +41,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       ),
     ]);
   } catch {
-    return redirect("/", {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
+    return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
   let resolvedEntry;
@@ -68,17 +57,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         schema.titlePropertyName ?? undefined
       ));
   } catch {
-    return redirect("/", {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
+    return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
   return {
     code,
-    pageId: resolvedEntry.pageId,
     currentStatus: resolvedEntry.currentStatus,
     statusOptions: schema.options,
   };
@@ -88,16 +71,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.WORKSPACES, env);
-  if (!session) {
-    const auth = await getAuth(request, cookies);
-    const dest = auth?.shareCode ? "/?error=revoked" : "/";
-    throw redirect(dest, {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
-  }
+  if (!session) throw await lostSessionRedirect(request, cookies);
 
   const formData = await request.formData();
   const statusValue = formData.get("statusValue") as string;
@@ -132,7 +106,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 }
 
 export default function StatusPage() {
-  const { code, pageId, currentStatus, statusOptions } =
+  const { code, currentStatus, statusOptions } =
     useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<typeof action>();
@@ -152,7 +126,6 @@ export default function StatusPage() {
 
   function handleStatusSelect(statusValue: string) {
     const formData = new FormData();
-    formData.set("pageId", pageId);
     formData.set("statusValue", statusValue);
     fetcher.submit(formData, { method: "post" });
   }

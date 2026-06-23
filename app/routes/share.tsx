@@ -1,6 +1,6 @@
 import { redirect, useLoaderData, useActionData, useNavigation, Form, Link } from "react-router";
 import type { Route } from "./+types/share";
-import { getAuth, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { getAuth, clearSessionHeaders } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   generateShareCode,
@@ -52,12 +52,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
   } else if (intent === "disconnect") {
     await disconnectWorkspace(env.WORKSPACES, auth.ownerId);
-    throw redirect("/", {
-      headers: [
-        ["Set-Cookie", await clearAuth(cookies)],
-        ["Set-Cookie", await clearSelectedDb(cookies)],
-      ],
-    });
+    throw redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
   return null;

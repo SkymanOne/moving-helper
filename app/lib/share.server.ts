@@ -29,7 +29,6 @@ export interface WorkspaceRecord {
   /** Epoch ms when the access token expires, or null if it never does. */
   tokenExpiresAt: number | null;
   workspaceName: string;
-  workspaceIcon: string | null;
   selectedDb: SelectedDb | null;
   createdAt: string;
   updatedAt: string;
@@ -141,7 +140,6 @@ export async function upsertWorkspace(
     refreshToken: string | null;
     tokenExpiresAt: number | null;
     workspaceName: string;
-    workspaceIcon: string | null;
   },
   secret: string
 ): Promise<void> {
@@ -201,13 +199,14 @@ async function loadWorkspaceWithValidToken(
   const record = await getWorkspaceWithRetry(kv, botId, env.SESSION_SECRET);
   if (!record) return null;
 
+  const refreshToken = record.refreshToken;
   const needsRefresh =
     record.tokenExpiresAt !== null &&
-    record.refreshToken !== null &&
+    refreshToken !== null &&
     record.tokenExpiresAt - Date.now() < REFRESH_SKEW_MS;
 
-  if (needsRefresh && record.refreshToken) {
-    const refreshed = await refreshAccessToken(record.refreshToken, env);
+  if (needsRefresh && refreshToken) {
+    const refreshed = await refreshAccessToken(refreshToken, env);
     if (!refreshed) return null;
     const updated: WorkspaceRecord = {
       ...record,
@@ -378,6 +377,21 @@ export interface ResolvedSession extends ResolvedAuth {
   selectedDb: SelectedDb;
 }
 
+/**
+ * The active database selection for a resolved session. Owners' selection lives
+ * in the record; guests use their own cookie, falling back to a clone of the
+ * owner's current selection.
+ */
+export async function selectedDbFor(
+  resolved: ResolvedAuth,
+  request: Request,
+  cookies: AppCookies
+): Promise<SelectedDb | null> {
+  return resolved.isOwner
+    ? resolved.record.selectedDb
+    : (await getSelectedDb(request, cookies)) ?? resolved.record.selectedDb;
+}
+
 export async function resolveSession(
   request: Request,
   cookies: AppCookies,
@@ -387,12 +401,7 @@ export async function resolveSession(
   const resolved = await resolveAuth(request, cookies, kv, env);
   if (!resolved) return null;
 
-  // Owners' selection lives in the record; guests use their own cookie,
-  // falling back to a clone of the owner's current selection.
-  const selectedDb = resolved.isOwner
-    ? resolved.record.selectedDb
-    : (await getSelectedDb(request, cookies)) ?? resolved.record.selectedDb;
-
+  const selectedDb = await selectedDbFor(resolved, request, cookies);
   if (!selectedDb) return null;
 
   return { ...resolved, selectedDb };
