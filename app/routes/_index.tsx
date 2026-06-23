@@ -165,7 +165,7 @@ export default function SetupPage() {
 
   return (
     <div className="flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
+      <div className="flex-1 flex flex-col items-center justify-center text-center pt-10 pb-8">
         <h1 className="text-4xl font-bold text-heading tracking-tight">
           Moving Buddy
         </h1>
@@ -200,7 +200,7 @@ export default function SetupPage() {
               </ol>
               <p>
                 Once that's ready, connect your workspace and pick the
-                database you want to use.
+                pages with the databases you want to use (or use the template).
               </p>
               <p className="text-text-muted text-xs">
                 Looking for a way to print labels?{" "}

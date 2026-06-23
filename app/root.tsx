@@ -23,7 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-base text-text pb-20">
+      <body className="bg-base text-text pb-12">
         <div className="max-w-md mx-auto px-4 py-6">
           {children}
         </div>
