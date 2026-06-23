@@ -2,14 +2,26 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "moving-buddy",
 	"main": "./workers/app.ts",
-	"compatibility_date": "2026-06-23",
+	"compatibility_date": "2026-06-16",
 	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
-		"enabled": true
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": false,
+			"persist": true,
+			"head_sampling_rate": 1
+		}
 	},
 	"upload_source_maps": true,
 	"vars": {
-		"NOTION_CLIENT_ID": "",
+		"NOTION_CLIENT_ID": "387d872b-594c-81a2-87a4-0037b821966d",
 		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback"
 	},
 	"secrets": {
