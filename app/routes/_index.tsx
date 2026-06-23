@@ -9,7 +9,7 @@ import {
   clearSelectedDb,
   type SelectedDb,
 } from "~/lib/cookies.server";
-
+import { cookiesContext } from "~/lib/context.server";
 import { DatabasePicker } from "~/components/DatabasePicker";
 
 export function meta() {
@@ -22,9 +22,10 @@ export function meta() {
   ];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const auth = await getAuth(request);
-  const selected = await getSelectedDb(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const cookies = context.get(cookiesContext);
+  const auth = await getAuth(request, cookies);
+  const selected = await getSelectedDb(request, cookies);
 
   if (!auth) {
     return {
@@ -41,8 +42,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   } catch {
     return redirect("/", {
       headers: [
-        ["Set-Cookie", await clearAuth()],
-        ["Set-Cookie", await clearSelectedDb()],
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
       ],
     });
   }
@@ -55,8 +56,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const auth = await getAuth(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const cookies = context.get(cookiesContext);
+  const auth = await getAuth(request, cookies);
   if (!auth) throw redirect("/");
 
   const formData = await request.formData();
@@ -79,7 +81,7 @@ export async function action({ request }: Route.ActionArgs) {
   };
 
   return redirect("/scan", {
-    headers: { "Set-Cookie": await setSelectedDb(selected) },
+    headers: { "Set-Cookie": await setSelectedDb(selected, cookies) },
   });
 }
 

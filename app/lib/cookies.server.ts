@@ -1,33 +1,35 @@
 import { createCookie } from "react-router";
 import type { IdPropertyType } from "~/lib/notion.server";
 
-if (!process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET env variable is required");
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax" as const,
+};
+
+export function createCookies(sessionSecret: string) {
+  const secrets = [sessionSecret];
+
+  return {
+    auth: createCookie("auth", {
+      ...COOKIE_OPTS,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      secrets,
+    }),
+    selectedDb: createCookie("selectedDb", {
+      ...COOKIE_OPTS,
+      maxAge: 60 * 60 * 24 * 30,
+      secrets,
+    }),
+    oauthState: createCookie("oauth_state", {
+      ...COOKIE_OPTS,
+      maxAge: 60 * 10, // 10 minutes
+      secrets,
+    }),
+  };
 }
 
-export const authCookie = createCookie("auth", {
-  maxAge: 60 * 60 * 24 * 30, // 30 days
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  secrets: [process.env.SESSION_SECRET],
-});
-
-export const selectedDbCookie = createCookie("selectedDb", {
-  maxAge: 60 * 60 * 24 * 30, // 30 days
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  secrets: [process.env.SESSION_SECRET],
-});
-
-export const oauthStateCookie = createCookie("oauth_state", {
-  maxAge: 60 * 10, // 10 minutes
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax",
-  secrets: [process.env.SESSION_SECRET],
-});
+export type AppCookies = ReturnType<typeof createCookies>;
 
 export interface AuthSession {
   accessToken: string;
@@ -45,34 +47,44 @@ export interface SelectedDb {
   uniqueIdPrefix: string | null;
 }
 
-export async function getAuth(request: Request): Promise<AuthSession | null> {
+export async function getAuth(
+  request: Request,
+  cookies: AppCookies
+): Promise<AuthSession | null> {
   const cookieHeader = request.headers.get("Cookie");
-  const value = await authCookie.parse(cookieHeader);
+  const value = await cookies.auth.parse(cookieHeader);
   if (!value || typeof value !== "object" || !value.accessToken) return null;
   return value as AuthSession;
 }
 
-export async function setAuth(session: AuthSession): Promise<string> {
-  return await authCookie.serialize(session);
+export async function setAuth(
+  session: AuthSession,
+  cookies: AppCookies
+): Promise<string> {
+  return await cookies.auth.serialize(session);
 }
 
-export async function clearAuth(): Promise<string> {
-  return await authCookie.serialize(null, { maxAge: 0 });
+export async function clearAuth(cookies: AppCookies): Promise<string> {
+  return await cookies.auth.serialize(null, { maxAge: 0 });
 }
 
 export async function getSelectedDb(
-  request: Request
+  request: Request,
+  cookies: AppCookies
 ): Promise<SelectedDb | null> {
   const cookieHeader = request.headers.get("Cookie");
-  const value = await selectedDbCookie.parse(cookieHeader);
+  const value = await cookies.selectedDb.parse(cookieHeader);
   if (!value || typeof value !== "object") return null;
   return value as SelectedDb;
 }
 
-export async function setSelectedDb(db: SelectedDb): Promise<string> {
-  return await selectedDbCookie.serialize(db);
+export async function setSelectedDb(
+  db: SelectedDb,
+  cookies: AppCookies
+): Promise<string> {
+  return await cookies.selectedDb.serialize(db);
 }
 
-export async function clearSelectedDb(): Promise<string> {
-  return await selectedDbCookie.serialize(null, { maxAge: 0 });
+export async function clearSelectedDb(cookies: AppCookies): Promise<string> {
+  return await cookies.selectedDb.serialize(null, { maxAge: 0 });
 }

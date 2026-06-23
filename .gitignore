@@ -1,9 +1,15 @@
 .DS_Store
 .env
-*.crt
-*.key
+.dev.vars
 /node_modules/
 
 # React Router
 /.react-router/
 /build/
+
+# Cloudflare
+.wrangler/
+worker-configuration.d.ts
+
+# TypeScript
+*.tsbuildinfo

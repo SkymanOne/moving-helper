@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "moving-buddy",
+	"main": "./workers/app.ts",
+	"compatibility_date": "2026-06-23",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"vars": {
+		"NOTION_CLIENT_ID": "",
+		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback"
+	},
+	"routes": [
+		{
+			"pattern": "moving-buddy.com",
+			"custom_domain": true
+		}
+	]
+}

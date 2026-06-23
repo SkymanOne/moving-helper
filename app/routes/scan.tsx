@@ -2,13 +2,15 @@ import { redirect, useNavigate, useNavigation, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
 import { getAuth, getSelectedDb } from "~/lib/cookies.server";
+import { cookiesContext } from "~/lib/context.server";
 
 const ScannerView = lazy(() => import("~/components/ScannerView"));
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const auth = await getAuth(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const cookies = context.get(cookiesContext);
+  const auth = await getAuth(request, cookies);
   if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request);
+  const selected = await getSelectedDb(request, cookies);
   if (!selected) throw redirect("/");
   return null;
 }

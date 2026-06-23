@@ -1,11 +1,14 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/auth.callback";
 import { exchangeOAuthCode } from "~/lib/notion.server";
-import { setAuth, oauthStateCookie } from "~/lib/cookies.server";
+import { setAuth } from "~/lib/cookies.server";
+import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 
 const KNOWN_ERRORS = new Set(["access_denied", "temporarily_unavailable"]);
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const cookies = context.get(cookiesContext);
+  const { env } = context.get(cloudflareContext);
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const error = url.searchParams.get("error");
@@ -20,8 +23,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   const returnedState = url.searchParams.get("state");
-  const expectedState = await oauthStateCookie.parse(
-    request.headers.get("Cookie")
+  const expectedState = await cookies.oauthState.parse(
+    request.headers.get("Cookie"),
   );
 
   if (!returnedState || returnedState !== expectedState) {
@@ -29,12 +32,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   const { accessToken, workspaceName, workspaceIcon } =
-    await exchangeOAuthCode(code);
+    await exchangeOAuthCode(code, env);
 
   return redirect("/", {
     headers: [
-      ["Set-Cookie", await setAuth({ accessToken, workspaceName, workspaceIcon })],
-      ["Set-Cookie", await oauthStateCookie.serialize("", { maxAge: 0 })],
+      [
+        "Set-Cookie",
+        await setAuth({ accessToken, workspaceName, workspaceIcon }, cookies),
+      ],
+      ["Set-Cookie", await cookies.oauthState.serialize("", { maxAge: 0 })],
     ],
   });
 }

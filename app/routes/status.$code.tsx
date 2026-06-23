@@ -2,6 +2,7 @@ import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
 import { getAuth, getSelectedDb, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { cookiesContext } from "~/lib/context.server";
 import {
   findEntryByCode,
   createEntry,
@@ -14,10 +15,11 @@ export function meta({ params }: Route.MetaArgs) {
   return [{ title: `Moving Buddy - ${params.code}` }];
 }
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  const auth = await getAuth(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+  const cookies = context.get(cookiesContext);
+  const auth = await getAuth(request, cookies);
   if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request);
+  const selected = await getSelectedDb(request, cookies);
   if (!selected) throw redirect("/");
 
   const code = decodeURIComponent(params.code);
@@ -38,8 +40,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   } catch {
     return redirect("/", {
       headers: [
-        ["Set-Cookie", await clearAuth()],
-        ["Set-Cookie", await clearSelectedDb()],
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
       ],
     });
   }
@@ -59,8 +61,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   } catch {
     return redirect("/", {
       headers: [
-        ["Set-Cookie", await clearAuth()],
-        ["Set-Cookie", await clearSelectedDb()],
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
       ],
     });
   }
@@ -70,15 +72,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     pageId: resolvedEntry.pageId,
     currentStatus: resolvedEntry.currentStatus,
     statusOptions: schema.options,
-    statusPropertyName: selected.statusPropertyName,
-    statusPropertyType: selected.statusPropertyType,
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const auth = await getAuth(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const cookies = context.get(cookiesContext);
+  const auth = await getAuth(request, cookies);
   if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request);
+  const selected = await getSelectedDb(request, cookies);
   if (!selected) throw redirect("/");
 
   const formData = await request.formData();

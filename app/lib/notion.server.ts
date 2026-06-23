@@ -125,24 +125,27 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export async function exchangeOAuthCode(code: string): Promise<{
+export interface NotionEnv {
+  NOTION_CLIENT_ID: string;
+  NOTION_CLIENT_SECRET: string;
+  NOTION_REDIRECT_URI: string;
+}
+
+export async function exchangeOAuthCode(
+  code: string,
+  env: NotionEnv
+): Promise<{
   accessToken: string;
   workspaceName: string;
   workspaceIcon: string | null;
 }> {
-  const clientId = process.env.NOTION_CLIENT_ID;
-  const clientSecret = process.env.NOTION_CLIENT_SECRET;
-  const redirectUri = process.env.NOTION_REDIRECT_URI;
-
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error("Missing Notion OAuth env variables");
-  }
+  const { NOTION_CLIENT_ID: clientId, NOTION_CLIENT_SECRET: clientSecret, NOTION_REDIRECT_URI: redirectUri } = env;
 
   const response = await fetch("https://api.notion.com/v1/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
     },
     body: JSON.stringify({
       grant_type: "authorization_code",
@@ -169,13 +172,11 @@ export async function exchangeOAuthCode(code: string): Promise<{
   };
 }
 
-export function getNotionAuthUrl(state?: string): string {
-  const clientId = process.env.NOTION_CLIENT_ID;
-  const redirectUri = process.env.NOTION_REDIRECT_URI;
-
-  if (!clientId || !redirectUri) {
-    throw new Error("Missing NOTION_CLIENT_ID or NOTION_REDIRECT_URI");
-  }
+export function getNotionAuthUrl(
+  env: Pick<NotionEnv, "NOTION_CLIENT_ID" | "NOTION_REDIRECT_URI">,
+  state?: string
+): string {
+  const { NOTION_CLIENT_ID: clientId, NOTION_REDIRECT_URI: redirectUri } = env;
 
   const params = new URLSearchParams({
     client_id: clientId,
