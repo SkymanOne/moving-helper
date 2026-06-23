@@ -13,16 +13,17 @@
   </a>
 </p>
 
-A simple app that takes the chaos out of moving day. Stick barcode labels on your boxes, scan them with your phone, and keep track of what's packed, in transit, or already at the new place — all synced with a Notion database.
+A simple app that takes the chaos out of moving day. Stick barcode labels on your boxes, scan them with your phone, and keep track of what's packed, in transit, or already at the new place, all synced with a Notion database. Get your friends to help with scanning by giving them guest access.
 
 Live at [moving-buddy.com](https://moving-buddy.com).
 
 ## How it works
 
-1. **Connect your workspace** — Sign in with Notion and grant the app access to your databases. No tokens to copy, no integrations to configure.
-2. **Pick your database** — The app finds databases with a Status field and an ID field automatically.
-3. **Scan a box** — Point your phone camera at a barcode or QR code. The app looks up the matching entry in your Notion database (or creates a new one if it doesn't exist yet).
-4. **Update the status** — Tap a status button to mark the box as "Packed", "In Transit", "Delivered", or whatever statuses you've set up in Notion. Done.
+1. **Connect your workspace.** Sign in with Notion and grant the app access to your databases. The free plan works just fine.
+2. **Pick your database.** The app finds databases with a `Status` field and an ID field automatically.
+3. **Scan a box.** Point your phone camera at a barcode or QR code. The app looks up the matching entry in your Notion database, or creates a new one if it doesn't exist yet.
+4. **Update the status.** Tap a status button to mark the box as **Packed**, **In Transit**, **Delivered**, or whatever statuses you've set up in Notion.
+5. **Get help with scanning.** Generate a guest share code and get a friend to help you scan the boxes. Guests don't need a Notion account, so there's no mess with workspace members, access privileges, and the like. They just scan barcodes and update the statuses in your database.
 
 ## Getting started
 
@@ -39,7 +40,7 @@ Head to [notion.so/profile/integrations](https://www.notion.so/profile/integrati
 Your database needs at least:
 
 - A **Status** field (the built-in Status type or a Select field both work)
-- A way to identify each box — either a **Unique ID** property, or the database's **title** column, which is used automatically when there's no Unique ID
+- A way to identify each box: either a **Unique ID** property, or the database's **title** column, which is used automatically when there's no Unique ID
 
 A Unique ID is the better choice: your labels can encode short codes like `BOX-12` that stay stable even if you rename a box. With the title fallback, the scanned code is matched against the box's title text instead.
 
@@ -98,19 +99,19 @@ pnpm deploy
 
 Pushes to `main` automatically deploy via GitHub Actions (`.github/workflows/deploy.yml`). You'll need these GitHub repo secrets:
 
-- `CLOUDFLARE_API_TOKEN` — A Cloudflare API token with Workers permissions
-- `CLOUDFLARE_ACCOUNT_ID` — Your Cloudflare account ID
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token with Workers permissions
+- `CLOUDFLARE_ACCOUNT_ID`: your Cloudflare account ID
 
 The workflow runs typecheck and build on all pushes and PRs, and deploys on push to `main`.
 
 ## Tech stack
 
-- [React Router v8](https://reactrouter.com/) — Full-stack framework with server-side rendering
-- [Cloudflare Workers](https://workers.cloudflare.com/) — Edge runtime
-- [Tailwind CSS v4](https://tailwindcss.com/) — Utility-first styling
-- [@yudiel/react-qr-scanner](https://github.com/yudielcurbelo/react-qr-scanner) — Camera-based barcode and QR code scanning
-- [@notionhq/client](https://github.com/makenotion/notion-sdk-js) — Official Notion API SDK
-- [TypeScript](https://www.typescriptlang.org/) — Type safety throughout
+- [React Router v8](https://reactrouter.com/), the full-stack framework with server-side rendering
+- [Cloudflare Workers](https://workers.cloudflare.com/) for the edge runtime
+- [Tailwind CSS v4](https://tailwindcss.com/) for styling
+- [@yudiel/react-qr-scanner](https://github.com/yudielcurbelo/react-qr-scanner) for camera-based barcode and QR code scanning
+- [@notionhq/client](https://github.com/makenotion/notion-sdk-js), the official Notion API SDK
+- [TypeScript](https://www.typescriptlang.org/) throughout
 
 ## License
 
