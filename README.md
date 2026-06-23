@@ -38,8 +38,10 @@ Head to [notion.so/profile/integrations](https://www.notion.so/profile/integrati
 
 Your database needs at least:
 
-- A **Status** field (the built-in Status type or a Select field work fine)
-- An **ID** field (this can be the auto-generated Unique ID, the title column, or a text property)
+- A **Status** field (the built-in Status type or a Select field both work)
+- A way to identify each box — either a **Unique ID** property, or the database's **title** column, which is used automatically when there's no Unique ID
+
+A Unique ID is the better choice: your labels can encode short codes like `BOX-12` that stay stable even if you rename a box. With the title fallback, the scanned code is matched against the box's title text instead.
 
 ### 2. Install and configure
 

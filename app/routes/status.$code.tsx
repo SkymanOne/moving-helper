@@ -44,6 +44,23 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
+  const isUniqueId = session.selectedDb.idPropertyType === "unique_id";
+
+  // For a Unique ID database, Notion assigns IDs itself, so a scanned code
+  // that matches no entry can't be recreated with that same ID. Rather than
+  // silently spawning a mismatched entry, ask the user whether to create a new
+  // one titled with the scanned text.
+  if (!entry && isUniqueId) {
+    return {
+      code,
+      needsCreate: true as const,
+      title: null,
+      pageId: null,
+      currentStatus: null,
+      statusOptions: schema.options,
+    };
+  }
+
   let resolvedEntry;
   try {
     resolvedEntry =
@@ -60,8 +77,15 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     return redirect("/", { headers: await clearSessionHeaders(cookies) });
   }
 
+  // Show the entry's title only when the code is a Unique ID — otherwise the
+  // displayed code already is the title, so it would just be a duplicate.
+  const title = isUniqueId ? resolvedEntry.title : null;
+
   return {
     code,
+    needsCreate: false as const,
+    title,
+    pageId: resolvedEntry.pageId,
     currentStatus: resolvedEntry.currentStatus,
     statusOptions: schema.options,
   };
@@ -74,49 +98,86 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   if (!session) throw await lostSessionRedirect(request, cookies);
 
   const formData = await request.formData();
+  const intent = formData.get("intent");
+  const code = decodeURIComponent(params.code);
+
+  // The user confirmed creating a new entry (Unique ID database, no match).
+  // Create it titled with the scanned code and hand back its page id so the
+  // status grid can target it directly.
+  if (intent === "create") {
+    const schema = await getDatabaseSchema(
+      session.accessToken,
+      session.selectedDb.dataSourceId
+    );
+    const created = await createEntry(
+      session.accessToken,
+      session.selectedDb.dataSourceId,
+      session.selectedDb.idPropertyName,
+      session.selectedDb.idPropertyType,
+      code,
+      schema.titlePropertyName ?? undefined
+    );
+    return { created: true as const, pageId: created.pageId };
+  }
+
   const statusValue = formData.get("statusValue") as string;
 
   if (!statusValue) {
     throw new Response("Missing required fields", { status: 400 });
   }
 
-  const code = decodeURIComponent(params.code);
-  const entry = await findEntryByCode(
-    session.accessToken,
-    session.selectedDb.dataSourceId,
-    session.selectedDb.idPropertyName,
-    session.selectedDb.idPropertyType,
-    session.selectedDb.uniqueIdPrefix,
-    code
-  );
+  // Prefer the page id resolved on the client (e.g. a just-created entry that
+  // can't be re-found by its scanned code); otherwise look it up by code.
+  let pageId = formData.get("pageId") as string | null;
+  if (!pageId) {
+    const entry = await findEntryByCode(
+      session.accessToken,
+      session.selectedDb.dataSourceId,
+      session.selectedDb.idPropertyName,
+      session.selectedDb.idPropertyType,
+      session.selectedDb.uniqueIdPrefix,
+      code
+    );
 
-  if (!entry) {
-    throw new Response("Entry not found", { status: 404 });
+    if (!entry) {
+      throw new Response("Entry not found", { status: 404 });
+    }
+    pageId = entry.pageId;
   }
 
   await updateStatus(
     session.accessToken,
-    entry.pageId,
+    pageId,
     session.selectedDb.statusPropertyName,
     session.selectedDb.statusPropertyType,
     statusValue
   );
 
-  return { success: true, updatedStatus: statusValue };
+  return { success: true as const, updatedStatus: statusValue };
 }
 
 export default function StatusPage() {
-  const { code, currentStatus, statusOptions } =
-    useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<typeof loader>();
+  const { code, title, currentStatus, statusOptions } = loaderData;
 
   const fetcher = useFetcher<typeof action>();
   const isUpdating = fetcher.state !== "idle";
+
+  // Remember a just-created entry's page id so the status grid can target it;
+  // the scanned code can't be re-found for Unique ID databases.
+  const [createdPageId, setCreatedPageId] = useState<string | null>(null);
+  const pageId = createdPageId ?? loaderData.pageId;
+  const needsCreate = loaderData.needsCreate && !createdPageId;
 
   const [activeStatus, setActiveStatus] = useState(currentStatus);
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
-    if (fetcher.data?.success && fetcher.data.updatedStatus) {
+    if (!fetcher.data) return;
+    if ("created" in fetcher.data && fetcher.data.created) {
+      setCreatedPageId(fetcher.data.pageId);
+    }
+    if ("success" in fetcher.data && fetcher.data.success) {
       setActiveStatus(fetcher.data.updatedStatus);
       setShowSuccess(true);
       const timer = setTimeout(() => setShowSuccess(false), 2000);
@@ -127,6 +188,13 @@ export default function StatusPage() {
   function handleStatusSelect(statusValue: string) {
     const formData = new FormData();
     formData.set("statusValue", statusValue);
+    if (pageId) formData.set("pageId", pageId);
+    fetcher.submit(formData, { method: "post" });
+  }
+
+  function handleCreate() {
+    const formData = new FormData();
+    formData.set("intent", "create");
     fetcher.submit(formData, { method: "post" });
   }
 
@@ -153,17 +221,45 @@ export default function StatusPage() {
         </div>
       )}
 
-      <div className="mb-6">
-        <p className="text-sm text-text-muted font-medium mb-3">
-          Choose a status:
-        </p>
-        <StatusGrid
-          options={statusOptions}
-          currentStatus={activeStatus}
-          onSelect={handleStatusSelect}
-          loading={isUpdating}
-        />
-      </div>
+      {needsCreate ? (
+        <div className="bg-base rounded-xl border border-base-border p-5 mb-6 text-center">
+          <p className="text-sm text-text-muted mb-1">
+            No entry matches this code.
+          </p>
+          <p className="text-base text-heading font-medium mb-4">
+            Create a new entry titled{" "}
+            <span className="font-mono break-all">“{code}”</span>?
+          </p>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={isUpdating}
+            className="block w-full text-center px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-60"
+          >
+            {isUpdating ? "Creating…" : "Create entry"}
+          </button>
+        </div>
+      ) : (
+        <>
+          {title && (
+            <p className="text-center text-lg font-semibold text-heading mb-6 break-words">
+              {title}
+            </p>
+          )}
+
+          <div className="mb-6">
+            <p className="text-sm text-text-muted font-medium mb-3">
+              Choose a status:
+            </p>
+            <StatusGrid
+              options={statusOptions}
+              currentStatus={activeStatus}
+              onSelect={handleStatusSelect}
+              loading={isUpdating}
+            />
+          </div>
+        </>
+      )}
 
       <div className="mt-auto pb-4">
         <Link

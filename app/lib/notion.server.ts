@@ -19,6 +19,7 @@ export interface StatusOption {
 export interface EntryInfo {
   pageId: string;
   currentStatus: string | null;
+  title: string | null;
 }
 
 interface ParsedSchema {
@@ -102,6 +103,10 @@ function parseSchemaProperties(
   }
 
   if (!statusProp || !idProp) return null;
+
+  // A scanned code can only be matched to (or created on) an entry via a
+  // Unique ID or a title. Without either, the database is unusable.
+  if (idProp.type !== "unique_id" && !titlePropertyName) return null;
 
   return {
     statusPropertyName: statusProp.name,
@@ -293,7 +298,9 @@ export async function getDatabaseSchema(
     ds.properties as Record<string, { type: string; [key: string]: unknown }>
   );
   if (!parsed) {
-    throw new Error("Database missing required status or ID properties");
+    throw new Error(
+      "Database needs a Status (or Select) property and an ID field (a Unique ID or a title)"
+    );
   }
 
   return parsed;
@@ -311,6 +318,19 @@ function parseUniqueIdCode(code: string, prefix: string | null): number | null {
   }
   const num = parseInt(code, 10);
   return isNaN(num) ? null : num;
+}
+
+/** Pull the page's title text (the `title`-type property), or null if empty. */
+function extractTitle(
+  props: Record<string, { type: string; title?: { plain_text: string }[] }>
+): string | null {
+  for (const config of Object.values(props)) {
+    if (config.type === "title" && Array.isArray(config.title)) {
+      const text = config.title.map((t) => t.plain_text).join("").trim();
+      return text.length > 0 ? text : null;
+    }
+  }
+  return null;
 }
 
 export async function findEntryByCode(
@@ -350,6 +370,7 @@ export async function findEntryByCode(
       type: string;
       status?: { name: string } | null;
       select?: { name: string } | null;
+      title?: { plain_text: string }[];
     }
   >;
   for (const config of Object.values(props)) {
@@ -363,7 +384,7 @@ export async function findEntryByCode(
     }
   }
 
-  return { pageId: page.id, currentStatus };
+  return { pageId: page.id, currentStatus, title: extractTitle(props) };
 }
 
 export async function createEntry(
@@ -396,7 +417,15 @@ export async function createEntry(
     properties,
   });
 
-  return { pageId: page.id, currentStatus: null };
+  const createdProps =
+    "properties" in page
+      ? (page.properties as Record<
+          string,
+          { type: string; title?: { plain_text: string }[] }
+        >)
+      : {};
+
+  return { pageId: page.id, currentStatus: null, title: extractTitle(createdProps) };
 }
 
 export async function updateStatus(
