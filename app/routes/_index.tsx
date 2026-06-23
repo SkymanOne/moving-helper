@@ -11,7 +11,7 @@ import {
   type SelectedDb,
 } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
-import { resolveAuth } from "~/lib/share.server";
+import { resolveAuth, setWorkspaceSelectedDb } from "~/lib/share.server";
 import { DatabasePicker } from "~/components/DatabasePicker";
 
 export function meta() {
@@ -27,18 +27,19 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
-  const resolved = await resolveAuth(request, cookies, env.SHARE_CODES);
-  const selected = await getSelectedDb(request, cookies);
+  const resolved = await resolveAuth(request, cookies, env.WORKSPACES, env);
 
   const url = new URL(request.url);
   const error = url.searchParams.get("error");
 
   if (!resolved) {
     const auth = await getAuth(request, cookies);
-    const wasRevoked = !!auth?.shareCode;
 
-    if (wasRevoked) {
-      throw redirect("/?error=revoked", {
+    // A stale cookie that no longer resolves (guest code revoked, or the
+    // owner's workspace was disconnected/expired) — clear it.
+    if (auth) {
+      const dest = auth.shareCode ? "/?error=revoked" : "/";
+      throw redirect(dest, {
         headers: [
           ["Set-Cookie", await clearAuth(cookies)],
           ["Set-Cookie", await clearSelectedDb(cookies)],
@@ -68,13 +69,17 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     });
   }
 
-  const auth = await getAuth(request, cookies);
+  // Owners' selection lives in the workspace record; guests use their own
+  // cookie, falling back to a clone of the owner's current selection.
+  const selectedDb = resolved.isOwner
+    ? resolved.record.selectedDb
+    : (await getSelectedDb(request, cookies)) ?? resolved.record.selectedDb;
 
   return {
     authenticated: true as const,
-    isOwner: !!auth?.accessToken,
+    isOwner: resolved.isOwner,
     databases,
-    hasSelection: !!selected,
+    hasSelection: !!selectedDb,
     workspaceName: resolved.workspaceName || null,
     error: null,
   };
@@ -83,7 +88,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
-  const resolved = await resolveAuth(request, cookies, env.SHARE_CODES);
+  const resolved = await resolveAuth(request, cookies, env.WORKSPACES, env);
   if (!resolved) throw redirect("/");
 
   const formData = await request.formData();
@@ -93,7 +98,26 @@ export async function action({ request, context }: Route.ActionArgs) {
     throw new Response("Missing database selection", { status: 400 });
   }
 
-  const schema = await getDatabaseSchema(resolved.accessToken, dataSourceId);
+  // Constrain the selection to a database the owner's integration can actually
+  // reach, so neither an owner nor a guest can point the token at an arbitrary
+  // data source. If the token was revoked between page load and submit, the
+  // Notion calls throw — degrade like the loader (clear cookies, back to home).
+  let schema;
+  try {
+    const databases = await listDatabases(resolved.accessToken);
+    if (!databases.some((d) => d.dataSourceId === dataSourceId)) {
+      throw new Response("Invalid database selection", { status: 400 });
+    }
+    schema = await getDatabaseSchema(resolved.accessToken, dataSourceId);
+  } catch (e) {
+    if (e instanceof Response) throw e; // preserve the 400
+    return redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
+      ],
+    });
+  }
 
   const selected: SelectedDb = {
     databaseId: dataSourceId,
@@ -104,6 +128,18 @@ export async function action({ request, context }: Route.ActionArgs) {
     idPropertyType: schema.idPropertyType,
     uniqueIdPrefix: schema.uniqueIdPrefix,
   };
+
+  // Owner: persist to the shared workspace record. Guest: keep it to their own
+  // device cookie so they don't change the selection for everyone else.
+  if (resolved.isOwner) {
+    await setWorkspaceSelectedDb(
+      env.WORKSPACES,
+      resolved.ownerId,
+      selected,
+      env.SESSION_SECRET
+    );
+    return redirect("/scan");
+  }
 
   return redirect("/scan", {
     headers: { "Set-Cookie": await setSelectedDb(selected, cookies) },

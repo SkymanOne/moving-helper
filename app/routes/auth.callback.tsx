@@ -2,6 +2,7 @@ import { redirect } from "react-router";
 import type { Route } from "./+types/auth.callback";
 import { exchangeOAuthCode } from "~/lib/notion.server";
 import { setAuth } from "~/lib/cookies.server";
+import { upsertWorkspace } from "~/lib/share.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 
 const KNOWN_ERRORS = new Set(["access_denied", "temporarily_unavailable"]);
@@ -31,15 +32,33 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     throw redirect("/?error=invalid_state");
   }
 
-  const { accessToken, botId, workspaceName, workspaceIcon } =
-    await exchangeOAuthCode(code, env);
+  const {
+    accessToken,
+    refreshToken,
+    expiresAt,
+    botId,
+    workspaceName,
+    workspaceIcon,
+  } = await exchangeOAuthCode(code, env);
+
+  // The access token lives server-side in the workspace record (keyed by
+  // botId); the cookie only carries the owner's identity.
+  await upsertWorkspace(
+    env.WORKSPACES,
+    botId,
+    {
+      accessToken,
+      refreshToken,
+      tokenExpiresAt: expiresAt,
+      workspaceName,
+      workspaceIcon,
+    },
+    env.SESSION_SECRET
+  );
 
   return redirect("/", {
     headers: [
-      [
-        "Set-Cookie",
-        await setAuth({ accessToken, ownerId: botId, workspaceName, workspaceIcon }, cookies),
-      ],
+      ["Set-Cookie", await setAuth({ ownerId: botId }, cookies)],
       ["Set-Cookie", await cookies.oauthState.serialize("", { maxAge: 0 })],
     ],
   });

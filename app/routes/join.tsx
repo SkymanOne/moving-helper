@@ -1,7 +1,7 @@
 import { redirect, useActionData, useNavigation, Form, Link } from "react-router";
 import type { Route } from "./+types/join";
-import { redeemShareCode } from "~/lib/share.server";
-import { setAuth } from "~/lib/cookies.server";
+import { redeemShareCode, getWorkspace } from "~/lib/share.server";
+import { setAuth, setSelectedDb } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 
 export function meta() {
@@ -11,23 +11,40 @@ export function meta() {
 export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+
   const formData = await request.formData();
   const code = (formData.get("code") as string)?.toUpperCase().trim();
 
-  if (!code || code.length !== 6 || !/^[A-Z2-9]+$/.test(code)) {
-    return { error: "Please enter a valid 6-character share code." };
-  }
+  const validFormat = !!code && code.length === 6 && /^[A-Z2-9]+$/.test(code);
+  const data = validFormat ? await redeemShareCode(env.WORKSPACES, code) : null;
 
-  const data = await redeemShareCode(env.SHARE_CODES, code);
+  // Only failed attempts count toward the per-IP rate limit, so brute-forcing
+  // is throttled (atomically, at the edge) without penalizing real users.
   if (!data) {
-    return { error: "Invalid or expired share code." };
+    const { success } = await env.JOIN_RATE_LIMITER.limit({ key: ip });
+    if (!success) {
+      return { error: "Too many attempts. Please wait a minute and try again." };
+    }
+    return {
+      error: validFormat
+        ? "Invalid or expired share code."
+        : "Please enter a valid 6-character share code.",
+    };
   }
 
-  return redirect("/", {
-    headers: {
-      "Set-Cookie": await setAuth({ shareCode: code }, cookies),
-    },
-  });
+  // Seed the guest's own selection from the owner's current choice; they can
+  // change it later without affecting the owner or other guests.
+  const workspace = await getWorkspace(env.WORKSPACES, data.ownerId, env.SESSION_SECRET);
+
+  const headers: [string, string][] = [
+    ["Set-Cookie", await setAuth({ shareCode: code }, cookies)],
+  ];
+  if (workspace?.selectedDb) {
+    headers.push(["Set-Cookie", await setSelectedDb(workspace.selectedDb, cookies)]);
+  }
+
+  return redirect("/", { headers });
 }
 
 export default function JoinPage() {

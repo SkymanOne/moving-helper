@@ -33,10 +33,9 @@ export function createCookies(sessionSecret: string) {
 export type AppCookies = ReturnType<typeof createCookies>;
 
 export interface AuthSession {
-  accessToken?: string;
+  /** Notion bot id — set for the workspace owner. */
   ownerId?: string;
-  workspaceName?: string;
-  workspaceIcon?: string | null;
+  /** Share code — set for guests who joined via a code. */
   shareCode?: string;
 }
 
@@ -50,6 +49,22 @@ export interface SelectedDb {
   uniqueIdPrefix: string | null;
 }
 
+function isSelectedDb(value: unknown): value is SelectedDb {
+  if (!value || typeof value !== "object") return false;
+  const d = value as Record<string, unknown>;
+  return (
+    typeof d.databaseId === "string" &&
+    typeof d.dataSourceId === "string" &&
+    typeof d.statusPropertyName === "string" &&
+    (d.statusPropertyType === "status" || d.statusPropertyType === "select") &&
+    typeof d.idPropertyName === "string" &&
+    (d.idPropertyType === "title" ||
+      d.idPropertyType === "rich_text" ||
+      d.idPropertyType === "unique_id") &&
+    (d.uniqueIdPrefix === null || typeof d.uniqueIdPrefix === "string")
+  );
+}
+
 export async function getAuth(
   request: Request,
   cookies: AppCookies
@@ -57,7 +72,7 @@ export async function getAuth(
   const cookieHeader = request.headers.get("Cookie");
   const value = await cookies.auth.parse(cookieHeader);
   if (!value || typeof value !== "object") return null;
-  if (!value.accessToken && !value.shareCode) return null;
+  if (!value.ownerId && !value.shareCode) return null;
   return value as AuthSession;
 }
 
@@ -78,8 +93,7 @@ export async function getSelectedDb(
 ): Promise<SelectedDb | null> {
   const cookieHeader = request.headers.get("Cookie");
   const value = await cookies.selectedDb.parse(cookieHeader);
-  if (!value || typeof value !== "object") return null;
-  return value as SelectedDb;
+  return isSelectedDb(value) ? value : null;
 }
 
 export async function setSelectedDb(

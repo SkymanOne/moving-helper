@@ -19,7 +19,7 @@ export function meta({ params }: Route.MetaArgs) {
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
-  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  const session = await resolveSession(request, cookies, env.WORKSPACES, env);
   if (!session) {
     const auth = await getAuth(request, cookies);
     const dest = auth?.shareCode ? "/?error=revoked" : "/";
@@ -87,7 +87,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 export async function action({ request, params, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
-  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  const session = await resolveSession(request, cookies, env.WORKSPACES, env);
   if (!session) {
     const auth = await getAuth(request, cookies);
     const dest = auth?.shareCode ? "/?error=revoked" : "/";

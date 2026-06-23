@@ -10,7 +10,7 @@ const ScannerView = lazy(() => import("~/components/ScannerView"));
 export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
-  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  const session = await resolveSession(request, cookies, env.WORKSPACES, env);
   if (!session) {
     const auth = await getAuth(request, cookies);
     const dest = auth?.shareCode ? "/?error=revoked" : "/";

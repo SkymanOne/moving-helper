@@ -1,11 +1,13 @@
 import { redirect, useLoaderData, useActionData, useNavigation, Form, Link } from "react-router";
 import type { Route } from "./+types/share";
-import { getAuth } from "~/lib/cookies.server";
+import { getAuth, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   generateShareCode,
   listShareCodes,
   revokeShareCode,
+  disconnectWorkspace,
+  maxCodesFromEnv,
   type ShareCodeInfo,
 } from "~/lib/share.server";
 
@@ -17,9 +19,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  if (!auth?.accessToken || !auth.ownerId) throw redirect("/");
+  if (!auth?.ownerId) throw redirect("/");
 
-  const codes = await listShareCodes(env.SHARE_CODES, auth.ownerId);
+  const codes = await listShareCodes(env.WORKSPACES, auth.ownerId);
 
   return { codes };
 }
@@ -28,7 +30,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  if (!auth?.accessToken || !auth.ownerId) throw redirect("/");
+  if (!auth?.ownerId) throw redirect("/");
 
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -36,10 +38,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (intent === "generate") {
     try {
       await generateShareCode(
-        env.SHARE_CODES,
+        env.WORKSPACES,
         auth.ownerId,
-        auth.accessToken,
-        auth.workspaceName ?? ""
+        maxCodesFromEnv(env.MAX_CODES_PER_OWNER)
       );
     } catch (e) {
       return { error: e instanceof Error ? e.message : "Failed to generate code." };
@@ -47,8 +48,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   } else if (intent === "revoke") {
     const code = formData.get("code") as string;
     if (code) {
-      await revokeShareCode(env.SHARE_CODES, auth.ownerId, code);
+      await revokeShareCode(env.WORKSPACES, auth.ownerId, code);
     }
+  } else if (intent === "disconnect") {
+    await disconnectWorkspace(env.WORKSPACES, auth.ownerId);
+    throw redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
+      ],
+    });
   }
 
   return null;
@@ -92,6 +101,9 @@ export default function SharePage() {
   const isGenerating =
     navigation.state === "submitting" &&
     navigation.formData?.get("intent") === "generate";
+  const isDisconnecting =
+    navigation.state === "submitting" &&
+    navigation.formData?.get("intent") === "disconnect";
 
   return (
     <div className="flex flex-col">
@@ -149,6 +161,37 @@ export default function SharePage() {
           </p>
         </div>
       )}
+
+      <div className="mt-10 pt-6 border-t border-base-border">
+        <h3 className="text-sm font-semibold text-heading mb-1">
+          Disconnect workspace
+        </h3>
+        <p className="text-xs text-text-muted mb-3">
+          Removes your stored Notion connection and revokes all share codes. You
+          can reconnect anytime by signing in again.
+        </p>
+        <Form
+          method="post"
+          onSubmit={(e) => {
+            if (
+              !confirm(
+                "Disconnect this workspace? All share codes will stop working."
+              )
+            ) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <input type="hidden" name="intent" value="disconnect" />
+          <button
+            type="submit"
+            disabled={isDisconnecting}
+            className="w-full px-4 py-3 border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50"
+          >
+            {isDisconnecting ? "Disconnecting..." : "Disconnect Workspace"}
+          </button>
+        </Form>
+      </div>
     </div>
   );
 }

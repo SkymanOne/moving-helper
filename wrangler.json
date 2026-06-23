@@ -24,7 +24,8 @@
 	"upload_source_maps": true,
 	"vars": {
 		"NOTION_CLIENT_ID": "387d872b-594c-81a2-87a4-0037b821966d",
-		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback"
+		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback",
+		"MAX_CODES_PER_OWNER": "10"
 	},
 	"secrets": {
 		"required": [
@@ -40,8 +41,18 @@
 	],
 	"kv_namespaces": [
 		{
-			"binding": "SHARE_CODES",
-			"id": "0ed5e126f53c4167a365a5f6c372a548"
+			"binding": "WORKSPACES",
+			"id": "20360469377e4d738e6c7542bf10b2fe"
+		}
+	],
+	"ratelimits": [
+		{
+			"name": "JOIN_RATE_LIMITER",
+			"namespace_id": "1001",
+			"simple": {
+				"limit": 10,
+				"period": 60
+			}
 		}
 	]
 }

@@ -131,22 +131,50 @@ export interface NotionEnv {
   NOTION_REDIRECT_URI: string;
 }
 
-export async function exchangeOAuthCode(
-  code: string,
-  env: NotionEnv
-): Promise<{
+export interface OAuthTokens {
   accessToken: string;
+  refreshToken: string | null;
+  /** Epoch milliseconds when the access token expires, or null if it never does. */
+  expiresAt: number | null;
+}
+
+export interface OAuthResult extends OAuthTokens {
   botId: string;
   workspaceName: string;
   workspaceIcon: string | null;
-}> {
-  const { NOTION_CLIENT_ID: clientId, NOTION_CLIENT_SECRET: clientSecret, NOTION_REDIRECT_URI: redirectUri } = env;
+}
+
+interface NotionTokenResponse {
+  access_token: string;
+  refresh_token?: string | null;
+  expires_in?: number | null;
+  bot_id: string;
+  workspace_name: string;
+  workspace_icon: string | null;
+}
+
+function tokenAuthHeader(env: NotionEnv): string {
+  const { NOTION_CLIENT_ID: clientId, NOTION_CLIENT_SECRET: clientSecret } = env;
+  return `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+}
+
+function expiresAtFrom(expiresIn: number | null | undefined): number | null {
+  // Notion only sends expires_in when token rotation is enabled for the
+  // integration. When absent, the access token does not expire.
+  return typeof expiresIn === "number" ? Date.now() + expiresIn * 1000 : null;
+}
+
+export async function exchangeOAuthCode(
+  code: string,
+  env: NotionEnv
+): Promise<OAuthResult> {
+  const { NOTION_REDIRECT_URI: redirectUri } = env;
 
   const response = await fetch("https://api.notion.com/v1/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+      Authorization: tokenAuthHeader(env),
     },
     body: JSON.stringify({
       grant_type: "authorization_code",
@@ -160,18 +188,48 @@ export async function exchangeOAuthCode(
     throw new Error(`OAuth token exchange failed: ${body}`);
   }
 
-  const data = (await response.json()) as {
-    access_token: string;
-    bot_id: string;
-    workspace_name: string;
-    workspace_icon: string | null;
-  };
+  const data = (await response.json()) as NotionTokenResponse;
 
   return {
     accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? null,
+    expiresAt: expiresAtFrom(data.expires_in),
     botId: data.bot_id,
     workspaceName: data.workspace_name,
     workspaceIcon: data.workspace_icon,
+  };
+}
+
+/**
+ * Exchange a refresh token for a fresh access/refresh token pair. Notion
+ * invalidates the old refresh token once a new pair is issued, so the caller
+ * must persist the returned tokens. Returns null if Notion rejects the refresh
+ * (e.g. the user revoked access).
+ */
+export async function refreshAccessToken(
+  refreshToken: string,
+  env: NotionEnv
+): Promise<OAuthTokens | null> {
+  const response = await fetch("https://api.notion.com/v1/oauth/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: tokenAuthHeader(env),
+    },
+    body: JSON.stringify({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as NotionTokenResponse;
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? refreshToken,
+    expiresAt: expiresAtFrom(data.expires_in),
   };
 }
 
