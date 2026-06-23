@@ -2,6 +2,7 @@ import { createCookie } from "react-router";
 import type { IdPropertyType } from "~/lib/notion.server";
 
 const COOKIE_OPTS = {
+  path: "/",
   httpOnly: true,
   secure: true,
   sameSite: "lax" as const,

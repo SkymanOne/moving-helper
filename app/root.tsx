@@ -61,30 +61,43 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
+  let title = "Something went wrong";
+  let message = "An unexpected error occurred. Please try again.";
+  let status: number | null = null;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+    status = error.status;
+    if (error.status === 404) {
+      title = "Page not found";
+      message = "The page you're looking for doesn't exist or has been moved.";
+    } else {
+      title = `Error ${error.status}`;
+      message = error.statusText || message;
+    }
   }
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center text-center">
-      <h1 className="text-4xl font-bold text-heading">{message}</h1>
-      <p className="mt-2 text-text">{details}</p>
-      {stack && (
-        <pre className="mt-4 w-full p-4 overflow-x-auto text-xs bg-base-dim rounded-lg">
-          <code>{stack}</code>
+    <div className="flex flex-col items-center justify-center text-center py-20">
+      {status === 404 ? (
+        <p className="text-6xl mb-4">?</p>
+      ) : (
+        <p className="text-6xl mb-4">!</p>
+      )}
+      <h1 className="text-3xl font-bold text-heading">{title}</h1>
+      <p className="mt-3 text-text-muted max-w-xs leading-relaxed">
+        {message}
+      </p>
+      {import.meta.env.DEV && error instanceof Error && error.stack && (
+        <pre className="mt-6 w-full p-4 overflow-x-auto text-xs text-left bg-base-dim rounded-lg border border-base-border">
+          <code>{error.stack}</code>
         </pre>
       )}
-    </main>
+      <a
+        href="/"
+        className="mt-8 inline-block px-6 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
+      >
+        Back to Home
+      </a>
+    </div>
   );
 }

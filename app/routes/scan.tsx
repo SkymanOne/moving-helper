@@ -19,7 +19,10 @@ export default function ScanPage() {
   const navigate = useNavigate();
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
-  const [error, setError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   const handleScan = useCallback(
     (results: Array<{ rawValue: string }>) => {
@@ -28,25 +31,60 @@ export default function ScanPage() {
         navigate(`/status/${encodeURIComponent(code)}`);
       }
     },
-    [navigate]
+    [navigate],
   );
 
   const handleError = useCallback((err: unknown) => {
-    const message =
-      err instanceof Error ? err.message : "Camera access failed";
-    if (message.toLowerCase().includes("permission")) {
-      setError(
-        "Camera permission denied. Please allow camera access in your browser settings."
-      );
+    const raw = err instanceof Error ? err.message : "Camera access failed";
+    if (raw.toLowerCase().includes("permission")) {
+      setCameraError({
+        title: "Camera access denied",
+        message:
+          "The scanner needs camera permission to read barcodes. Please allow camera access in your browser or device settings and try again.",
+      });
     } else {
-      setError(message);
+      setCameraError({
+        title: "Camera unavailable",
+        message:
+          "Could not start the camera. Make sure no other app is using it and try again.",
+      });
     }
   }, []);
+
+  if (cameraError) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-20">
+        <p className="text-6xl mb-4">!</p>
+        <h1 className="text-3xl font-bold text-heading">{cameraError.title}</h1>
+        <p className="mt-3 text-text-muted max-w-xs leading-relaxed">
+          {cameraError.message}
+        </p>
+        <div className="mt-8 flex flex-col gap-3 w-full max-w-xs">
+          <button
+            onClick={() => setCameraError(null)}
+            className="px-6 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
+          >
+            Try Again
+          </button>
+          <Link
+            to="/"
+            className="px-6 py-3 text-text-muted font-medium rounded-xl border border-base-border hover:bg-base-dim active:scale-[0.98] transition-all"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col">
       <header className="flex items-center justify-between mb-4">
-        <Link to="/" prefetch="intent" className="text-xl font-bold text-heading hover:text-text transition-colors">
+        <Link
+          to="/"
+          prefetch="intent"
+          className="text-xl font-bold text-heading hover:text-text transition-colors"
+        >
           Moving Buddy
         </Link>
         <div className="flex items-center gap-2">
@@ -74,17 +112,6 @@ export default function ScanPage() {
             <div className="inline-block w-6 h-6 border-2 border-base-border border-t-accent rounded-full animate-spin" />
             <p className="mt-3 text-sm text-text-muted">Loading...</p>
           </div>
-        ) : error ? (
-          <div className="text-center px-4">
-            <div className="text-4xl mb-4">📷</div>
-            <p className="text-red-600 font-medium">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="mt-4 px-4 py-2 bg-accent text-white rounded-xl hover:bg-accent-hover transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
         ) : (
           <Suspense
             fallback={
@@ -98,7 +125,7 @@ export default function ScanPage() {
         )}
       </div>
 
-      {!isNavigating && (
+      {!isNavigating && !cameraError && (
         <p className="text-center text-sm text-text-muted mt-4 pb-4">
           Point your camera at a barcode or QR code
         </p>

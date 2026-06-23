@@ -27,12 +27,16 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const auth = await getAuth(request, cookies);
   const selected = await getSelectedDb(request, cookies);
 
+  const url = new URL(request.url);
+  const error = url.searchParams.get("error");
+
   if (!auth) {
     return {
       authenticated: false as const,
       databases: [],
       hasSelection: false,
       workspaceName: null,
+      error,
     };
   }
 
@@ -53,6 +57,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     databases,
     hasSelection: !!selected,
     workspaceName: auth.workspaceName,
+    error: null,
   };
 }
 
@@ -85,8 +90,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   });
 }
 
+const ERROR_MESSAGES: Record<string, string> = {
+  access_denied: "You declined the Notion connection request.",
+  temporarily_unavailable: "Notion is temporarily unavailable. Please try again.",
+  missing_code: "Something went wrong during login. Please try again.",
+  invalid_state: "Login session expired. Please try again.",
+  oauth_error: "Something went wrong connecting to Notion. Please try again.",
+};
+
 export default function SetupPage() {
-  const { authenticated, databases, hasSelection, workspaceName } =
+  const { authenticated, databases, hasSelection, workspaceName, error } =
     useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -103,6 +116,12 @@ export default function SetupPage() {
       </div>
 
       <div className="pb-8">
+        {error && (
+          <div className="mb-4 px-4 py-3 bg-red-50 text-red-700 rounded-xl text-center text-sm font-medium border border-red-200">
+            {ERROR_MESSAGES[error] ?? "Something went wrong. Please try again."}
+          </div>
+        )}
+
         {!authenticated ? (
           <>
             <div className="mb-6 rounded-xl border border-base-border bg-base-dim p-4 text-sm text-text leading-relaxed space-y-3">
