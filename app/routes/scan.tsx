@@ -1,17 +1,24 @@
 import { redirect, useNavigate, useNavigation, Form, Link } from "react-router";
 import { useState, useCallback, lazy, Suspense } from "react";
 import type { Route } from "./+types/scan";
-import { getAuth, getSelectedDb } from "~/lib/cookies.server";
-import { cookiesContext } from "~/lib/context.server";
+import { clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { cloudflareContext, cookiesContext } from "~/lib/context.server";
+import { resolveSession } from "~/lib/share.server";
 
 const ScannerView = lazy(() => import("~/components/ScannerView"));
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
-  const auth = await getAuth(request, cookies);
-  if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request, cookies);
-  if (!selected) throw redirect("/");
+  const { env } = context.get(cloudflareContext);
+  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  if (!session) {
+    throw redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
+      ],
+    });
+  }
   return null;
 }
 

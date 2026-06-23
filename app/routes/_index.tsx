@@ -10,7 +10,8 @@ import {
   clearSelectedDb,
   type SelectedDb,
 } from "~/lib/cookies.server";
-import { cookiesContext } from "~/lib/context.server";
+import { cloudflareContext, cookiesContext } from "~/lib/context.server";
+import { resolveAuth } from "~/lib/share.server";
 import { DatabasePicker } from "~/components/DatabasePicker";
 
 export function meta() {
@@ -25,15 +26,17 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
-  const auth = await getAuth(request, cookies);
+  const { env } = context.get(cloudflareContext);
+  const resolved = await resolveAuth(request, cookies, env.SHARE_CODES);
   const selected = await getSelectedDb(request, cookies);
 
   const url = new URL(request.url);
   const error = url.searchParams.get("error");
 
-  if (!auth) {
+  if (!resolved) {
     return {
       authenticated: false as const,
+      isOwner: false,
       databases: [],
       hasSelection: false,
       workspaceName: null,
@@ -43,7 +46,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   let databases;
   try {
-    databases = await listDatabases(auth.accessToken);
+    databases = await listDatabases(resolved.accessToken);
   } catch {
     return redirect("/", {
       headers: [
@@ -53,19 +56,23 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     });
   }
 
+  const auth = await getAuth(request, cookies);
+
   return {
     authenticated: true as const,
+    isOwner: !!auth?.accessToken,
     databases,
     hasSelection: !!selected,
-    workspaceName: auth.workspaceName,
+    workspaceName: resolved.workspaceName || null,
     error: null,
   };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
-  const auth = await getAuth(request, cookies);
-  if (!auth) throw redirect("/");
+  const { env } = context.get(cloudflareContext);
+  const resolved = await resolveAuth(request, cookies, env.SHARE_CODES);
+  if (!resolved) throw redirect("/");
 
   const formData = await request.formData();
   const dataSourceId = formData.get("dataSourceId") as string;
@@ -74,7 +81,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     throw new Response("Missing database selection", { status: 400 });
   }
 
-  const schema = await getDatabaseSchema(auth.accessToken, dataSourceId);
+  const schema = await getDatabaseSchema(resolved.accessToken, dataSourceId);
 
   const selected: SelectedDb = {
     databaseId: dataSourceId,
@@ -100,7 +107,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function SetupPage() {
-  const { authenticated, databases, hasSelection, workspaceName, error } =
+  const { authenticated, isOwner, databases, hasSelection, workspaceName, error } =
     useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -227,20 +234,20 @@ export default function SetupPage() {
               </p>
             )}
             {hasSelection && (
-              <>
-                <Link
-                  to="/scan"
-                  className="block w-full text-center mb-4 px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
-                >
-                  Continue to Scanner
-                </Link>
-                <Link
-                  to="/share"
-                  className="block w-full text-center mb-4 px-4 py-2 text-sm text-text-muted font-medium rounded-xl border border-base-border hover:border-accent hover:text-accent active:scale-[0.98] transition-all"
-                >
-                  Manage Share Codes
-                </Link>
-              </>
+              <Link
+                to="/scan"
+                className="block w-full text-center mb-4 px-4 py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover active:scale-[0.98] transition-all"
+              >
+                Continue to Scanner
+              </Link>
+            )}
+            {isOwner && (
+              <Link
+                to="/share"
+                className="block w-full text-center mb-4 px-4 py-2 text-sm text-text-muted font-medium rounded-xl border border-base-border hover:border-accent hover:text-accent active:scale-[0.98] transition-all"
+              >
+                Manage Share Codes
+              </Link>
             )}
             {isSubmitting || isPolling ? (
               <div className="text-center py-8">

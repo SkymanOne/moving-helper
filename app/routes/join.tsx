@@ -1,7 +1,7 @@
 import { redirect, useActionData, useNavigation, Form, Link } from "react-router";
 import type { Route } from "./+types/join";
 import { redeemShareCode } from "~/lib/share.server";
-import { setAuth, setSelectedDb } from "~/lib/cookies.server";
+import { setAuth } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 
 export function meta() {
@@ -23,21 +23,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { error: "Invalid or expired share code." };
   }
 
-  return redirect("/scan", {
-    headers: [
-      [
-        "Set-Cookie",
-        await setAuth(
-          {
-            accessToken: data.accessToken,
-            workspaceName: data.workspaceName,
-            workspaceIcon: null,
-          },
-          cookies
-        ),
-      ],
-      ["Set-Cookie", await setSelectedDb(data.selectedDb, cookies)],
-    ],
+  return redirect("/", {
+    headers: {
+      "Set-Cookie": await setAuth({ shareCode: code }, cookies),
+    },
   });
 }
 

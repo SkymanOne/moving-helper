@@ -1,12 +1,16 @@
-import type { SelectedDb } from "./cookies.server";
+import {
+  type SelectedDb,
+  type AppCookies,
+  getAuth,
+  getSelectedDb,
+} from "./cookies.server";
 
 const CODE_TTL = 60 * 60 * 24 * 30; // 30 days
-const MAX_CODES_PER_DB = 10;
+const MAX_CODES_PER_OWNER = 10;
 
 interface ShareCodeData {
   accessToken: string;
   workspaceName: string;
-  selectedDb: SelectedDb;
   createdAt: string;
 }
 
@@ -18,8 +22,8 @@ async function hashOwner(accessToken: string): Promise<string> {
   ).join("");
 }
 
-function codesKey(ownerHash: string, dataSourceId: string): string {
-  return `codes:${ownerHash}:${dataSourceId}`;
+function codesKey(ownerHash: string): string {
+  return `codes:${ownerHash}`;
 }
 
 function shareKey(code: string): string {
@@ -36,8 +40,7 @@ function generateCode(): string {
 export async function generateShareCode(
   kv: KVNamespace,
   accessToken: string,
-  workspaceName: string,
-  selectedDb: SelectedDb
+  workspaceName: string
 ): Promise<string> {
   const code = generateCode();
   const ownerHash = await hashOwner(accessToken);
@@ -45,14 +48,13 @@ export async function generateShareCode(
   const data: ShareCodeData = {
     accessToken,
     workspaceName,
-    selectedDb,
     createdAt: new Date().toISOString(),
   };
 
   const existing =
-    await kv.get<string[]>(codesKey(ownerHash, selectedDb.dataSourceId), "json") ?? [];
+    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
 
-  if (existing.length >= MAX_CODES_PER_DB) {
+  if (existing.length >= MAX_CODES_PER_OWNER) {
     throw new Error("Maximum share codes reached. Revoke an existing code first.");
   }
 
@@ -61,10 +63,7 @@ export async function generateShareCode(
   });
 
   existing.push(code);
-  await kv.put(
-    codesKey(ownerHash, selectedDb.dataSourceId),
-    JSON.stringify(existing)
-  );
+  await kv.put(codesKey(ownerHash), JSON.stringify(existing));
 
   return code;
 }
@@ -83,12 +82,11 @@ export interface ShareCodeInfo {
 
 export async function listShareCodes(
   kv: KVNamespace,
-  accessToken: string,
-  dataSourceId: string
+  accessToken: string
 ): Promise<ShareCodeInfo[]> {
   const ownerHash = await hashOwner(accessToken);
   const codes =
-    await kv.get<string[]>(codesKey(ownerHash, dataSourceId), "json") ?? [];
+    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
 
   const results: ShareCodeInfo[] = [];
   const validCodes: string[] = [];
@@ -102,10 +100,7 @@ export async function listShareCodes(
   }
 
   if (validCodes.length !== codes.length) {
-    await kv.put(
-      codesKey(ownerHash, dataSourceId),
-      JSON.stringify(validCodes)
-    );
+    await kv.put(codesKey(ownerHash), JSON.stringify(validCodes));
   }
 
   return results;
@@ -114,7 +109,6 @@ export async function listShareCodes(
 export async function revokeShareCode(
   kv: KVNamespace,
   accessToken: string,
-  dataSourceId: string,
   code: string
 ): Promise<void> {
   const ownerHash = await hashOwner(accessToken);
@@ -122,10 +116,59 @@ export async function revokeShareCode(
   await kv.delete(shareKey(code));
 
   const codes =
-    await kv.get<string[]>(codesKey(ownerHash, dataSourceId), "json") ?? [];
+    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
   const updated = codes.filter((c) => c !== code);
-  await kv.put(
-    codesKey(ownerHash, dataSourceId),
-    JSON.stringify(updated)
-  );
+  await kv.put(codesKey(ownerHash), JSON.stringify(updated));
+}
+
+interface ResolvedAuth {
+  accessToken: string;
+  workspaceName: string;
+}
+
+export async function resolveAuth(
+  request: Request,
+  cookies: AppCookies,
+  kv: KVNamespace
+): Promise<ResolvedAuth | null> {
+  const auth = await getAuth(request, cookies);
+  if (!auth) return null;
+
+  if (auth.accessToken) {
+    return {
+      accessToken: auth.accessToken,
+      workspaceName: auth.workspaceName ?? "",
+    };
+  }
+
+  if (auth.shareCode) {
+    const data = await redeemShareCode(kv, auth.shareCode);
+    if (!data) return null;
+    return {
+      accessToken: data.accessToken,
+      workspaceName: data.workspaceName,
+    };
+  }
+
+  return null;
+}
+
+export interface ResolvedSession {
+  accessToken: string;
+  workspaceName: string;
+  selectedDb: SelectedDb;
+}
+
+export async function resolveSession(
+  request: Request,
+  cookies: AppCookies,
+  kv: KVNamespace
+): Promise<ResolvedSession | null> {
+  const resolved = await resolveAuth(request, cookies, kv);
+  if (!resolved) return null;
+
+  const selected = await getSelectedDb(request, cookies);
+  if (!selected) return null;
+
+  return { ...resolved, selectedDb: selected };
 }

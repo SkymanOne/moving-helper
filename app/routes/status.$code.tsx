@@ -1,14 +1,15 @@
 import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
-import { getAuth, getSelectedDb, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
-import { cookiesContext } from "~/lib/context.server";
+import { clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   findEntryByCode,
   createEntry,
   updateStatus,
   getDatabaseSchema,
 } from "~/lib/notion.server";
+import { resolveSession } from "~/lib/share.server";
 import { StatusGrid } from "~/components/StatusGrid";
 
 export function meta({ params }: Route.MetaArgs) {
@@ -17,23 +18,29 @@ export function meta({ params }: Route.MetaArgs) {
 
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
-  const auth = await getAuth(request, cookies);
-  if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request, cookies);
-  if (!selected) throw redirect("/");
+  const { env } = context.get(cloudflareContext);
+  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  if (!session) {
+    throw redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
+      ],
+    });
+  }
 
   const code = decodeURIComponent(params.code);
 
   let schema, entry;
   try {
     [schema, entry] = await Promise.all([
-      getDatabaseSchema(auth.accessToken, selected.dataSourceId),
+      getDatabaseSchema(session.accessToken, session.selectedDb.dataSourceId),
       findEntryByCode(
-        auth.accessToken,
-        selected.dataSourceId,
-        selected.idPropertyName,
-        selected.idPropertyType,
-        selected.uniqueIdPrefix,
+        session.accessToken,
+        session.selectedDb.dataSourceId,
+        session.selectedDb.idPropertyName,
+        session.selectedDb.idPropertyType,
+        session.selectedDb.uniqueIdPrefix,
         code
       ),
     ]);
@@ -51,10 +58,10 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     resolvedEntry =
       entry ??
       (await createEntry(
-        auth.accessToken,
-        selected.dataSourceId,
-        selected.idPropertyName,
-        selected.idPropertyType,
+        session.accessToken,
+        session.selectedDb.dataSourceId,
+        session.selectedDb.idPropertyName,
+        session.selectedDb.idPropertyType,
         code,
         schema.titlePropertyName ?? undefined
       ));
@@ -77,10 +84,16 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
-  const auth = await getAuth(request, cookies);
-  if (!auth) throw redirect("/");
-  const selected = await getSelectedDb(request, cookies);
-  if (!selected) throw redirect("/");
+  const { env } = context.get(cloudflareContext);
+  const session = await resolveSession(request, cookies, env.SHARE_CODES);
+  if (!session) {
+    throw redirect("/", {
+      headers: [
+        ["Set-Cookie", await clearAuth(cookies)],
+        ["Set-Cookie", await clearSelectedDb(cookies)],
+      ],
+    });
+  }
 
   const formData = await request.formData();
   const pageId = formData.get("pageId") as string;
@@ -91,10 +104,10 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   await updateStatus(
-    auth.accessToken,
+    session.accessToken,
     pageId,
-    selected.statusPropertyName,
-    selected.statusPropertyType,
+    session.selectedDb.statusPropertyName,
+    session.selectedDb.statusPropertyType,
     statusValue
   );
 

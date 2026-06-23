@@ -33,9 +33,10 @@ export function createCookies(sessionSecret: string) {
 export type AppCookies = ReturnType<typeof createCookies>;
 
 export interface AuthSession {
-  accessToken: string;
-  workspaceName: string;
-  workspaceIcon: string | null;
+  accessToken?: string;
+  workspaceName?: string;
+  workspaceIcon?: string | null;
+  shareCode?: string;
 }
 
 export interface SelectedDb {
@@ -54,7 +55,8 @@ export async function getAuth(
 ): Promise<AuthSession | null> {
   const cookieHeader = request.headers.get("Cookie");
   const value = await cookies.auth.parse(cookieHeader);
-  if (!value || typeof value !== "object" || !value.accessToken) return null;
+  if (!value || typeof value !== "object") return null;
+  if (!value.accessToken && !value.shareCode) return null;
   return value as AuthSession;
 }
 

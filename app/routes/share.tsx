@@ -1,6 +1,6 @@
 import { redirect, useLoaderData, useActionData, useNavigation, Form, Link } from "react-router";
 import type { Route } from "./+types/share";
-import { getAuth, getSelectedDb } from "~/lib/cookies.server";
+import { getAuth } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   generateShareCode,
@@ -17,14 +17,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  const selected = await getSelectedDb(request, cookies);
-  if (!auth || !selected) throw redirect("/");
+  if (!auth?.accessToken) throw redirect("/");
 
-  const codes = await listShareCodes(
-    env.SHARE_CODES,
-    auth.accessToken,
-    selected.dataSourceId
-  );
+  const codes = await listShareCodes(env.SHARE_CODES, auth.accessToken);
 
   return { codes };
 }
@@ -33,8 +28,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  const selected = await getSelectedDb(request, cookies);
-  if (!auth || !selected) throw redirect("/");
+  if (!auth?.accessToken) throw redirect("/");
 
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -44,8 +38,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       await generateShareCode(
         env.SHARE_CODES,
         auth.accessToken,
-        auth.workspaceName,
-        selected
+        auth.workspaceName ?? ""
       );
     } catch (e) {
       return { error: e instanceof Error ? e.message : "Failed to generate code." };
@@ -53,12 +46,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   } else if (intent === "revoke") {
     const code = formData.get("code") as string;
     if (code) {
-      await revokeShareCode(
-        env.SHARE_CODES,
-        auth.accessToken,
-        selected.dataSourceId,
-        code
-      );
+      await revokeShareCode(env.SHARE_CODES, auth.accessToken, code);
     }
   }
 
@@ -125,7 +113,7 @@ export default function SharePage() {
 
       <h2 className="text-2xl font-bold text-heading mb-2">Share Codes</h2>
       <p className="text-sm text-text-muted mb-6">
-        Generate a code so others can scan with your database without needing a
+        Generate a code so others can scan with your databases without needing a
         Notion account.
       </p>
 
@@ -156,7 +144,7 @@ export default function SharePage() {
         <div className="text-center text-text-muted py-8">
           <p className="text-sm">
             No share codes yet. Generate one to let others scan with your
-            database.
+            databases.
           </p>
         </div>
       )}
