@@ -1,4 +1,5 @@
-import { redirect, useLoaderData, Link, useNavigation, Form } from "react-router";
+import { redirect, useLoaderData, useRevalidator, Link, useNavigation, Form } from "react-router";
+import { useEffect } from "react";
 import type { Route } from "./+types/_index";
 import { listDatabases, getDatabaseSchema } from "~/lib/notion.server";
 import {
@@ -103,6 +104,15 @@ export default function SetupPage() {
     useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const { revalidate, state: revalidatorState } = useRevalidator();
+  const isLoading = revalidatorState === "loading";
+
+  useEffect(() => {
+    if (authenticated && databases.length === 0) {
+      const timer = setTimeout(revalidate, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [authenticated, databases.length, revalidate]);
 
   return (
     <div className="flex flex-col">
@@ -181,11 +191,11 @@ export default function SetupPage() {
                 Continue to Scanner
               </Link>
             )}
-            {isSubmitting ? (
+            {isSubmitting || (isLoading && databases.length === 0) ? (
               <div className="text-center py-8">
                 <div className="inline-block w-6 h-6 border-2 border-base-border border-t-accent rounded-full animate-spin" />
                 <p className="mt-3 text-sm text-text-muted">
-                  Connecting to database...
+                  {isSubmitting ? "Connecting to database..." : "Looking for databases..."}
                 </p>
               </div>
             ) : (

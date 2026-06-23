@@ -23,8 +23,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-base text-text pb-20">
-        <div className="max-w-md mx-auto px-4 py-6">
+      <body className="bg-white text-text pb-20">
+        <div className="max-w-md mx-auto px-4 py-6 min-h-screen bg-base">
           {children}
         </div>
         <footer className="fixed bottom-0 left-0 right-0 bg-base/90 backdrop-blur-sm border-t border-base-border py-2 text-center text-xs text-text-muted space-y-0.5">

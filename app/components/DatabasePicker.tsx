@@ -12,7 +12,7 @@ export function DatabasePicker({ databases }: DatabasePickerProps) {
         <p className="text-lg font-medium">No compatible databases found</p>
         <p className="mt-2 text-sm">
           Make sure your Notion database has a <strong>Status</strong> field and
-          a <strong>title</strong> property, and that you&apos;ve shared it with
+          a <strong>ID</strong> field, and that you&apos;ve shared it with
           your integration.
         </p>
       </div>
