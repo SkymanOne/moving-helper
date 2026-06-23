@@ -5,8 +5,8 @@
 <h1 align="center">Moving Buddy</h1>
 
 <p align="center">
-  <a href="https://github.com/SkymanOne/moving-helper/actions/workflows/deploy.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/SkymanOne/moving-helper/deploy.yml?branch=main&label=build" alt="Build status" />
+  <a href="https://github.com/SkymanOne/moving-buddy/actions/workflows/deploy.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/SkymanOne/moving-buddy/deploy.yml?branch=main&label=build" alt="Build status" />
   </a>
   <a href="https://moving-buddy.com">
     <img src="https://img.shields.io/website?url=https%3A%2F%2Fmoving-buddy.com&label=deployment&up_message=live&down_message=down" alt="Deployment status" />
@@ -114,4 +114,4 @@ The workflow runs typecheck and build on all pushes and PRs, and deploys on push
 
 ## License
 
-[Apache License 2.0](LICENSE)
+Licensed under the [Business Source License 1.1](LICENSE). Non-production use is free; production use isn't permitted until the Change Date (2028-06-23), when the license converts to the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). For a commercial license before then, get in touch.
