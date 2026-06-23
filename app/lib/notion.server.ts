@@ -136,6 +136,7 @@ export async function exchangeOAuthCode(
   env: NotionEnv
 ): Promise<{
   accessToken: string;
+  botId: string;
   workspaceName: string;
   workspaceIcon: string | null;
 }> {
@@ -161,12 +162,14 @@ export async function exchangeOAuthCode(
 
   const data = (await response.json()) as {
     access_token: string;
+    bot_id: string;
     workspace_name: string;
     workspace_icon: string | null;
   };
 
   return {
     accessToken: data.access_token,
+    botId: data.bot_id,
     workspaceName: data.workspace_name,
     workspaceIcon: data.workspace_icon,
   };

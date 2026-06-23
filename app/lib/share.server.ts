@@ -14,16 +14,8 @@ interface ShareCodeData {
   createdAt: string;
 }
 
-async function hashOwner(accessToken: string): Promise<string> {
-  const data = new TextEncoder().encode(accessToken);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash).slice(0, 8), (b) =>
-    b.toString(16).padStart(2, "0")
-  ).join("");
-}
-
-function codesKey(ownerHash: string): string {
-  return `codes:${ownerHash}`;
+function codesKey(ownerId: string): string {
+  return `codes:${ownerId}`;
 }
 
 function shareKey(code: string): string {
@@ -39,11 +31,11 @@ function generateCode(): string {
 
 export async function generateShareCode(
   kv: KVNamespace,
+  ownerId: string,
   accessToken: string,
   workspaceName: string
 ): Promise<string> {
   const code = generateCode();
-  const ownerHash = await hashOwner(accessToken);
 
   const data: ShareCodeData = {
     accessToken,
@@ -52,7 +44,7 @@ export async function generateShareCode(
   };
 
   const existing =
-    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
+    await kv.get<string[]>(codesKey(ownerId), "json") ?? [];
 
   if (existing.length >= MAX_CODES_PER_OWNER) {
     throw new Error("Maximum share codes reached. Revoke an existing code first.");
@@ -63,7 +55,7 @@ export async function generateShareCode(
   });
 
   existing.push(code);
-  await kv.put(codesKey(ownerHash), JSON.stringify(existing));
+  await kv.put(codesKey(ownerId), JSON.stringify(existing));
 
   return code;
 }
@@ -82,11 +74,10 @@ export interface ShareCodeInfo {
 
 export async function listShareCodes(
   kv: KVNamespace,
-  accessToken: string
+  ownerId: string
 ): Promise<ShareCodeInfo[]> {
-  const ownerHash = await hashOwner(accessToken);
   const codes =
-    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
+    await kv.get<string[]>(codesKey(ownerId), "json") ?? [];
 
   const results: ShareCodeInfo[] = [];
   const validCodes: string[] = [];
@@ -100,7 +91,7 @@ export async function listShareCodes(
   }
 
   if (validCodes.length !== codes.length) {
-    await kv.put(codesKey(ownerHash), JSON.stringify(validCodes));
+    await kv.put(codesKey(ownerId), JSON.stringify(validCodes));
   }
 
   return results;
@@ -108,17 +99,17 @@ export async function listShareCodes(
 
 export async function revokeShareCode(
   kv: KVNamespace,
-  accessToken: string,
+  ownerId: string,
   code: string
 ): Promise<void> {
-  const ownerHash = await hashOwner(accessToken);
+  const codes =
+    await kv.get<string[]>(codesKey(ownerId), "json") ?? [];
+  if (!codes.includes(code)) return;
 
   await kv.delete(shareKey(code));
 
-  const codes =
-    await kv.get<string[]>(codesKey(ownerHash), "json") ?? [];
   const updated = codes.filter((c) => c !== code);
-  await kv.put(codesKey(ownerHash), JSON.stringify(updated));
+  await kv.put(codesKey(ownerId), JSON.stringify(updated));
 }
 
 interface ResolvedAuth {

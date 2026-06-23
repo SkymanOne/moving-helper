@@ -17,9 +17,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  if (!auth?.accessToken) throw redirect("/");
+  if (!auth?.accessToken || !auth.ownerId) throw redirect("/");
 
-  const codes = await listShareCodes(env.SHARE_CODES, auth.accessToken);
+  const codes = await listShareCodes(env.SHARE_CODES, auth.ownerId);
 
   return { codes };
 }
@@ -28,7 +28,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const auth = await getAuth(request, cookies);
-  if (!auth?.accessToken) throw redirect("/");
+  if (!auth?.accessToken || !auth.ownerId) throw redirect("/");
 
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -37,6 +37,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     try {
       await generateShareCode(
         env.SHARE_CODES,
+        auth.ownerId,
         auth.accessToken,
         auth.workspaceName ?? ""
       );
@@ -46,7 +47,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   } else if (intent === "revoke") {
     const code = formData.get("code") as string;
     if (code) {
-      await revokeShareCode(env.SHARE_CODES, auth.accessToken, code);
+      await revokeShareCode(env.SHARE_CODES, auth.ownerId, code);
     }
   }
 

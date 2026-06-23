@@ -32,16 +32,16 @@
 			"NOTION_CLIENT_SECRET"
 		]
 	},
-	"kv_namespaces": [
-		{
-			"binding": "SHARE_CODES",
-			"id": "df66d4f3a4eb460bad41df9f596d2835"
-		}
-	],
 	"routes": [
 		{
 			"pattern": "moving-buddy.com",
 			"custom_domain": true
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "SHARE_CODES",
+			"id": "0ed5e126f53c4167a365a5f6c372a548"
 		}
 	]
 }

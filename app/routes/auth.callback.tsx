@@ -31,14 +31,14 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     throw redirect("/?error=invalid_state");
   }
 
-  const { accessToken, workspaceName, workspaceIcon } =
+  const { accessToken, botId, workspaceName, workspaceIcon } =
     await exchangeOAuthCode(code, env);
 
   return redirect("/", {
     headers: [
       [
         "Set-Cookie",
-        await setAuth({ accessToken, workspaceName, workspaceIcon }, cookies),
+        await setAuth({ accessToken, ownerId: botId, workspaceName, workspaceIcon }, cookies),
       ],
       ["Set-Cookie", await cookies.oauthState.serialize("", { maxAge: 0 })],
     ],

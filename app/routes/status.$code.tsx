@@ -84,7 +84,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request, context }: Route.ActionArgs) {
+export async function action({ request, params, context }: Route.ActionArgs) {
   const cookies = context.get(cookiesContext);
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.SHARE_CODES);
@@ -100,16 +100,29 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   const formData = await request.formData();
-  const pageId = formData.get("pageId") as string;
   const statusValue = formData.get("statusValue") as string;
 
-  if (!pageId || !statusValue) {
+  if (!statusValue) {
     throw new Response("Missing required fields", { status: 400 });
+  }
+
+  const code = decodeURIComponent(params.code);
+  const entry = await findEntryByCode(
+    session.accessToken,
+    session.selectedDb.dataSourceId,
+    session.selectedDb.idPropertyName,
+    session.selectedDb.idPropertyType,
+    session.selectedDb.uniqueIdPrefix,
+    code
+  );
+
+  if (!entry) {
+    throw new Response("Entry not found", { status: 404 });
   }
 
   await updateStatus(
     session.accessToken,
-    pageId,
+    entry.pageId,
     session.selectedDb.statusPropertyName,
     session.selectedDb.statusPropertyType,
     statusValue

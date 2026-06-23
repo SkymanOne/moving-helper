@@ -34,6 +34,7 @@ export type AppCookies = ReturnType<typeof createCookies>;
 
 export interface AuthSession {
   accessToken?: string;
+  ownerId?: string;
   workspaceName?: string;
   workspaceIcon?: string | null;
   shareCode?: string;

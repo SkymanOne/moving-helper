@@ -4,7 +4,7 @@
 
 Moving Buddy collects the minimum data needed to function:
 
-- **Notion OAuth token** — stored in an encrypted, HTTP-only cookie on your device. Used to access your Notion workspace on your behalf.
+- **Notion OAuth token** — stored in a signed, HTTP-only cookie on your device. Used to access your Notion workspace on your behalf.
 - **Selected database preference** — stored in a cookie on your device so you don't have to re-select it each time.
 - **Share codes** — when you generate a share code so others can scan with your database, a copy of your Notion access token and database selection is stored on Cloudflare's edge network (KV). This lets others use the scanner without their own Notion account. You can revoke share codes at any time from the Manage Share Codes page.
 
