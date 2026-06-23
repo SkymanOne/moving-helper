@@ -1,7 +1,7 @@
 import { redirect, useLoaderData, useFetcher, Link } from "react-router";
 import { useState, useEffect } from "react";
 import type { Route } from "./+types/status.$code";
-import { clearAuth, clearSelectedDb } from "~/lib/cookies.server";
+import { getAuth, clearAuth, clearSelectedDb } from "~/lib/cookies.server";
 import { cloudflareContext, cookiesContext } from "~/lib/context.server";
 import {
   findEntryByCode,
@@ -21,7 +21,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.SHARE_CODES);
   if (!session) {
-    throw redirect("/", {
+    const auth = await getAuth(request, cookies);
+    const dest = auth?.shareCode ? "/?error=revoked" : "/";
+    throw redirect(dest, {
       headers: [
         ["Set-Cookie", await clearAuth(cookies)],
         ["Set-Cookie", await clearSelectedDb(cookies)],
@@ -87,7 +89,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   const { env } = context.get(cloudflareContext);
   const session = await resolveSession(request, cookies, env.SHARE_CODES);
   if (!session) {
-    throw redirect("/", {
+    const auth = await getAuth(request, cookies);
+    const dest = auth?.shareCode ? "/?error=revoked" : "/";
+    throw redirect(dest, {
       headers: [
         ["Set-Cookie", await clearAuth(cookies)],
         ["Set-Cookie", await clearSelectedDb(cookies)],

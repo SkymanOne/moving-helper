@@ -34,6 +34,18 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const error = url.searchParams.get("error");
 
   if (!resolved) {
+    const auth = await getAuth(request, cookies);
+    const wasRevoked = !!auth?.shareCode;
+
+    if (wasRevoked) {
+      throw redirect("/?error=revoked", {
+        headers: [
+          ["Set-Cookie", await clearAuth(cookies)],
+          ["Set-Cookie", await clearSelectedDb(cookies)],
+        ],
+      });
+    }
+
     return {
       authenticated: false as const,
       isOwner: false,
@@ -104,6 +116,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   missing_code: "Something went wrong during login. Please try again.",
   invalid_state: "Login session expired. Please try again.",
   oauth_error: "Something went wrong connecting to Notion. Please try again.",
+  revoked: "Your access has been revoked.",
 };
 
 export default function SetupPage() {
