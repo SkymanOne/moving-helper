@@ -12,6 +12,9 @@
 		"NOTION_CLIENT_ID": "",
 		"NOTION_REDIRECT_URI": "https://moving-buddy.com/auth/callback"
 	},
+	"secrets": {
+		"required": ["SESSION_SECRET", "NOTION_CLIENT_SECRET"]
+	},
 	"routes": [
 		{
 			"pattern": "moving-buddy.com",
